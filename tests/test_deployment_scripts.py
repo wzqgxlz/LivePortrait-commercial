@@ -50,3 +50,14 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     assert "x-api-key" in script
     assert "Expected unauthorized response" in script
     assert "LivePortrait" in script
+
+
+def test_api_job_smoke_script_submits_polls_and_downloads_result():
+    script = Path("scripts/smoke_api_job.py").read_text(encoding="utf-8")
+
+    assert "/api/jobs" in script
+    assert "source" in script
+    assert "driving" in script
+    assert "succeeded" in script
+    assert "--output" in script
+    assert "x-api-key" in script

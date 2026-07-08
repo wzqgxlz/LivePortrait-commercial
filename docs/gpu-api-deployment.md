@@ -132,7 +132,23 @@ This checks:
 - that job endpoints reject requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 
-## 6. Run With systemd
+## 6. Run A Real Smoke Job
+
+After the lightweight deployment check passes, submit one real Humans mode job:
+
+```bash
+python scripts/smoke_api_job.py \
+  --base-url http://127.0.0.1:8000 \
+  --api-key "$LIVEPORTRAIT_API_KEY" \
+  --source assets/examples/source/s9.jpg \
+  --driving assets/examples/driving/d12.jpg \
+  --output tmp/api-smoke-result.jpg
+```
+
+This uploads the source and driving files through the API, polls until the job
+finishes, and downloads the generated result.
+
+## 7. Run With systemd
 
 Install the service template after you have copied the repository to
 `/opt/liveportrait` and created `/etc/liveportrait/liveportrait-api.env`:
@@ -151,7 +167,7 @@ View logs:
 journalctl -u liveportrait-api -f
 ```
 
-## 7. Clean Old Jobs
+## 8. Clean Old Jobs
 
 Preview cleanup:
 
@@ -168,7 +184,7 @@ python scripts/cleanup_api_jobs.py --older-than-days 7
 Only `succeeded` and `failed` jobs older than the retention window are removed.
 `pending` and `running` jobs are kept.
 
-## 8. Production Notes
+## 9. Production Notes
 
 - Put the service behind HTTPS before public access.
 - Keep `LIVEPORTRAIT_API_KEY` secret and rotate it when sharing access changes.
