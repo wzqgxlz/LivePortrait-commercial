@@ -1,12 +1,13 @@
 # coding: utf-8
 
 import shutil
+import secrets
 import threading
 from pathlib import Path
 from queue import Queue
 from typing import Dict
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from src.utils.commercial_safety import assert_commercial_safe_environment
@@ -38,6 +39,12 @@ def create_app(
     if run_startup_checks:
         assert_commercial_safe_environment(cfg.repo_root)
 
+    def require_api_key(x_api_key: str | None = Header(default=None, alias="x-api-key")) -> None:
+        if cfg.api_key is None:
+            return
+        if x_api_key is None or not secrets.compare_digest(x_api_key, cfg.api_key):
+            raise HTTPException(status_code=401, detail="invalid API key")
+
     if enqueue_jobs:
         worker = threading.Thread(target=_worker_loop, args=(queue, store, runner), daemon=True)
         worker.start()
@@ -48,7 +55,11 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/api/jobs", status_code=201)
-    def create_job(source: UploadFile = File(...), driving: UploadFile = File(...)) -> Dict[str, str]:
+    def create_job(
+        source: UploadFile = File(...),
+        driving: UploadFile = File(...),
+        _: None = Depends(require_api_key),
+    ) -> Dict[str, str]:
         _validate_upload(source, SOURCE_EXTENSIONS, "source", cfg.max_upload_bytes)
         _validate_upload(driving, DRIVING_EXTENSIONS, "driving", cfg.max_upload_bytes)
 
@@ -75,14 +86,14 @@ def create_app(
         return _job_payload(job)
 
     @app.get("/api/jobs/{job_id}")
-    def get_job(job_id: str) -> Dict[str, str]:
+    def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, str]:
         job = store.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
         return _job_payload(job)
 
     @app.get("/api/jobs/{job_id}/result")
-    def get_result(job_id: str):
+    def get_result(job_id: str, _: None = Depends(require_api_key)):
         job = store.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")

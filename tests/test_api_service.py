@@ -58,6 +58,47 @@ def test_create_job_rejects_unsupported_source_type(tmp_path):
         assert "source" in response.json()["detail"]
 
 
+def test_api_key_protects_job_endpoints_when_configured(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data", api_key="secret-key"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/api/jobs",
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        assert create_response.status_code == 401
+
+        wrong_key_response = client.get("/api/jobs/missing", headers={"x-api-key": "wrong"})
+        assert wrong_key_response.status_code == 401
+
+        authed_create_response = client.post(
+            "/api/jobs",
+            headers={"x-api-key": "secret-key"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        assert authed_create_response.status_code == 201
+        job_id = authed_create_response.json()["job_id"]
+
+        authed_status_response = client.get(f"/api/jobs/{job_id}", headers={"x-api-key": "secret-key"})
+        assert authed_status_response.status_code == 200
+
+        result_response = client.get(f"/api/jobs/{job_id}/result")
+        assert result_response.status_code == 401
+
+
 def test_result_endpoint_returns_completed_output(tmp_path):
     from src.api.app import create_app
     from src.api.config import ApiConfig

@@ -19,10 +19,36 @@ Useful environment variables:
 $env:LIVEPORTRAIT_API_DATA_DIR = "tmp/api"
 $env:LIVEPORTRAIT_API_PYTHON = ".\LivePortrait_env\Scripts\python.exe"
 $env:LIVEPORTRAIT_API_FORCE_CPU = "0"
+$env:LIVEPORTRAIT_API_KEY = "replace-with-a-long-random-secret"
 ```
 
 Set `LIVEPORTRAIT_API_FORCE_CPU=1` only for local smoke tests without an NVIDIA
 GPU.
+
+Set `LIVEPORTRAIT_API_KEY` before exposing the service to any network. When it
+is unset, the API stays open for local development and smoke tests. When it is
+set, every job endpoint requires the same value in the `x-api-key` header.
+
+## Authentication
+
+Protected endpoints:
+
+- `POST /api/jobs`
+- `GET /api/jobs/{job_id}`
+- `GET /api/jobs/{job_id}/result`
+
+Public endpoint:
+
+- `GET /api/health`
+
+Example with API Key enabled:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
+  -H "x-api-key: replace-with-a-long-random-secret" `
+  -F "source=@assets/examples/source/s9.jpg" `
+  -F "driving=@assets/examples/driving/d12.jpg"
+```
 
 ## Endpoints
 
