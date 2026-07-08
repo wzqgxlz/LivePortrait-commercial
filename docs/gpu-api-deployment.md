@@ -92,6 +92,14 @@ export LIVEPORTRAIT_API_PYTHON="python"
 export LIVEPORTRAIT_API_FORCE_CPU="0"
 ```
 
+You can also start from the template:
+
+```bash
+sudo mkdir -p /etc/liveportrait
+sudo cp deploy/liveportrait-api.env.example /etc/liveportrait/liveportrait-api.env
+sudo nano /etc/liveportrait/liveportrait-api.env
+```
+
 Start the service:
 
 ```bash
@@ -107,7 +115,43 @@ The same service exposes:
 The frontend stores the API Key in browser local storage and sends it as
 `x-api-key` for job creation, status polling, and result download.
 
-## 5. Clean Old Jobs
+## 5. Check Deployment
+
+After startup, run a non-inference deployment check:
+
+```bash
+python scripts/check_api_deployment.py \
+  --base-url http://127.0.0.1:8000 \
+  --api-key "$LIVEPORTRAIT_API_KEY"
+```
+
+This checks:
+
+- `GET /api/health`
+- the frontend HTML page
+- that job endpoints reject requests without `x-api-key`
+- that the configured API Key reaches the job endpoint
+
+## 6. Run With systemd
+
+Install the service template after you have copied the repository to
+`/opt/liveportrait` and created `/etc/liveportrait/liveportrait-api.env`:
+
+```bash
+sudo cp deploy/liveportrait-api.service /etc/systemd/system/liveportrait-api.service
+sudo systemctl daemon-reload
+sudo systemctl enable liveportrait-api
+sudo systemctl start liveportrait-api
+sudo systemctl status liveportrait-api
+```
+
+View logs:
+
+```bash
+journalctl -u liveportrait-api -f
+```
+
+## 7. Clean Old Jobs
 
 Preview cleanup:
 
@@ -124,7 +168,7 @@ python scripts/cleanup_api_jobs.py --older-than-days 7
 Only `succeeded` and `failed` jobs older than the retention window are removed.
 `pending` and `running` jobs are kept.
 
-## 6. Production Notes
+## 8. Production Notes
 
 - Put the service behind HTTPS before public access.
 - Keep `LIVEPORTRAIT_API_KEY` secret and rotate it when sharing access changes.

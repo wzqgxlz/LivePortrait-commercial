@@ -1,0 +1,18 @@
+[Unit]
+Description=LivePortrait Commercial API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liveportrait
+Group=liveportrait
+WorkingDirectory=/opt/liveportrait
+EnvironmentFile=/etc/liveportrait/liveportrait-api.env
+ExecStart=/opt/liveportrait/scripts/start_gpu_api_server.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
