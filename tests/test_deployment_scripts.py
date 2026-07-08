@@ -58,6 +58,7 @@ def test_api_job_smoke_script_submits_polls_and_downloads_result():
     assert "/api/jobs" in script
     assert "source" in script
     assert "driving" in script
+    assert "consent_confirmed" in script
     assert "succeeded" in script
     assert "--output" in script
     assert "x-api-key" in script

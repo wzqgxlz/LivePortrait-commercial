@@ -14,6 +14,7 @@ RUNNING = "running"
 SUCCEEDED = "succeeded"
 FAILED = "failed"
 TERMINAL_STATUSES = (SUCCEEDED, FAILED)
+DEFAULT_USAGE_POLICY_VERSION = "human-image-authorization-v1"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,8 @@ class JobRecord:
     error_message: Optional[str]
     source_sha256: str
     driving_sha256: str
+    consent_confirmed: bool
+    usage_policy_version: str
     created_at: str
     updated_at: str
 
@@ -47,6 +50,8 @@ class JobStore:
         driving_path: Path,
         output_dir: Path,
         job_id: str | None = None,
+        consent_confirmed: bool = False,
+        usage_policy_version: str = DEFAULT_USAGE_POLICY_VERSION,
     ) -> JobRecord:
         now = _now()
         job_id = job_id or uuid.uuid4().hex
@@ -58,9 +63,10 @@ class JobStore:
                 INSERT INTO jobs (
                     job_id, status, source_filename, driving_filename, source_path,
                     driving_path, output_dir, result_path, error_message,
-                    source_sha256, driving_sha256, created_at, updated_at
+                    source_sha256, driving_sha256, consent_confirmed,
+                    usage_policy_version, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -74,6 +80,8 @@ class JobStore:
                     None,
                     source_sha256,
                     driving_sha256,
+                    1 if consent_confirmed else 0,
+                    usage_policy_version,
                     now,
                     now,
                 ),
@@ -139,11 +147,15 @@ class JobStore:
                     error_message TEXT,
                     source_sha256 TEXT NOT NULL,
                     driving_sha256 TEXT NOT NULL,
+                    consent_confirmed INTEGER NOT NULL DEFAULT 0,
+                    usage_policy_version TEXT NOT NULL DEFAULT 'legacy',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            _ensure_column(conn, "jobs", "consent_confirmed", "INTEGER NOT NULL DEFAULT 0")
+            _ensure_column(conn, "jobs", "usage_policy_version", "TEXT NOT NULL DEFAULT 'legacy'")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -172,6 +184,8 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
         error_message=row["error_message"],
         source_sha256=row["source_sha256"],
         driving_sha256=row["driving_sha256"],
+        consent_confirmed=bool(row["consent_confirmed"]),
+        usage_policy_version=row["usage_policy_version"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -179,3 +193,9 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    if column_name not in columns:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")

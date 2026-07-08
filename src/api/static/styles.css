@@ -133,6 +133,27 @@ input[type="file"] {
   align-content: center;
 }
 
+.consent-box {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.consent-box input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 button,
 .download-link {
   min-height: 44px;

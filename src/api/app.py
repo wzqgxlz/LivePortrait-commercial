@@ -7,7 +7,7 @@ from pathlib import Path
 from queue import Queue
 from typing import Dict
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -15,7 +15,7 @@ from src.utils.commercial_safety import assert_commercial_safe_environment
 
 from .config import ApiConfig
 from .runner import InferenceRunner
-from .storage import JobRecord, JobStore, PENDING, SUCCEEDED
+from .storage import DEFAULT_USAGE_POLICY_VERSION, JobRecord, JobStore, PENDING, SUCCEEDED
 
 
 SOURCE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -66,8 +66,10 @@ def create_app(
     def create_job(
         source: UploadFile = File(...),
         driving: UploadFile = File(...),
+        consent_confirmed: bool = Form(False),
         _: None = Depends(require_api_key),
-    ) -> Dict[str, str]:
+    ) -> Dict[str, object]:
+        _validate_consent(consent_confirmed)
         _validate_upload(source, SOURCE_EXTENSIONS, "source", cfg.max_upload_bytes)
         _validate_upload(driving, DRIVING_EXTENSIONS, "driving", cfg.max_upload_bytes)
 
@@ -88,13 +90,15 @@ def create_app(
             driving_path=driving_path,
             output_dir=output_dir,
             job_id=job_id,
+            consent_confirmed=consent_confirmed,
+            usage_policy_version=DEFAULT_USAGE_POLICY_VERSION,
         )
         if enqueue_jobs:
             queue.put(job.job_id)
         return _job_payload(job)
 
     @app.get("/api/jobs/{job_id}")
-    def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, str]:
+    def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
         job = store.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
@@ -132,6 +136,14 @@ def _validate_upload(upload: UploadFile, allowed_extensions: set[str], field_nam
         )
 
 
+def _validate_consent(consent_confirmed: bool) -> None:
+    if not consent_confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="source image authorization must be confirmed before creating a job",
+        )
+
+
 def _save_upload(upload: UploadFile, destination: Path, max_upload_bytes: int) -> None:
     total = 0
     with destination.open("wb") as handle:
@@ -146,7 +158,7 @@ def _save_upload(upload: UploadFile, destination: Path, max_upload_bytes: int) -
             handle.write(chunk)
 
 
-def _job_payload(job: JobRecord) -> Dict[str, str]:
+def _job_payload(job: JobRecord) -> Dict[str, object]:
     payload = {
         "job_id": job.job_id,
         "status": job.status,
@@ -154,6 +166,8 @@ def _job_payload(job: JobRecord) -> Dict[str, str]:
         "driving_filename": job.driving_filename,
         "source_sha256": job.source_sha256,
         "driving_sha256": job.driving_sha256,
+        "consent_confirmed": job.consent_confirmed,
+        "usage_policy_version": job.usage_policy_version,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }

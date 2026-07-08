@@ -146,7 +146,8 @@ python scripts/smoke_api_job.py \
 ```
 
 This uploads the source and driving files through the API, polls until the job
-finishes, and downloads the generated result.
+finishes, and downloads the generated result. The script submits
+`consent_confirmed=true`, matching the frontend authorization checkbox.
 
 ## 7. Run With systemd
 

@@ -53,7 +53,8 @@ Example with API Key enabled:
 curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
   -H "x-api-key: replace-with-a-long-random-secret" `
   -F "source=@assets/examples/source/s9.jpg" `
-  -F "driving=@assets/examples/driving/d12.jpg"
+  -F "driving=@assets/examples/driving/d12.jpg" `
+  -F "consent_confirmed=true"
 ```
 
 The frontend page stores the API Key in the browser's local storage and sends it
@@ -71,6 +72,11 @@ Multipart files:
 
 - `source`: `.jpg`, `.jpeg`, `.png`
 - `driving`: `.jpg`, `.jpeg`, `.png`, `.mp4`, `.pkl`
+
+Required form field:
+
+- `consent_confirmed=true`: confirms the user has permission to use the source
+  image and accepts the usage restrictions.
 
 Response:
 
@@ -162,7 +168,8 @@ Create job:
 ```powershell
 curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
   -F "source=@assets/examples/source/s9.jpg" `
-  -F "driving=@assets/examples/driving/d12.jpg"
+  -F "driving=@assets/examples/driving/d12.jpg" `
+  -F "consent_confirmed=true"
 ```
 
 Observed job:
@@ -198,6 +205,7 @@ curl.exe -L "http://127.0.0.1:8000/api/jobs/ad27741556c142348232f5c13ce4ef3a/res
 Result:
 
 - `POST /api/jobs` accepted real uploads.
+- The request confirmed source image authorization with `consent_confirmed=true`.
 - The in-process worker completed the LivePortrait Humans mode job.
 - `GET /api/jobs/{job_id}` returned `succeeded`.
 - `GET /api/jobs/{job_id}/result` downloaded a 275,418-byte image.
@@ -230,6 +238,7 @@ Browser flow:
 
 - Opened the frontend page.
 - Entered the API Key.
+- Confirmed source image authorization and usage restrictions.
 - Selected the source image and driving image.
 - Submitted the job from the page.
 - Waited for the page to poll the job status.
@@ -252,6 +261,7 @@ Result:
 
 - The frontend submitted real uploads through `POST /api/jobs`.
 - The frontend sent `x-api-key` for job creation, polling, and result download.
+- The frontend submitted `consent_confirmed=true` with the job.
 - The page showed service health as `Online`.
 - The page reached `succeeded` without manual command-line polling.
 - The page displayed a generated image preview.

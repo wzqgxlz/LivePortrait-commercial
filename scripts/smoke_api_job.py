@@ -52,6 +52,7 @@ def _create_job(base_url: str, api_key: str, source: Path, driving: Path) -> str
         [
             _file_part(boundary, "source", source),
             _file_part(boundary, "driving", driving),
+            _text_part(boundary, "consent_confirmed", "true"),
             f"--{boundary}--\r\n".encode("utf-8"),
         ]
     )
@@ -113,6 +114,14 @@ def _file_part(boundary: str, field_name: str, path: Path) -> bytes:
         f"Content-Type: {content_type}\r\n\r\n"
     )
     return header.encode("utf-8") + path.read_bytes() + b"\r\n"
+
+
+def _text_part(boundary: str, field_name: str, value: str) -> bytes:
+    return (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field_name}"\r\n\r\n'
+        f"{value}\r\n"
+    ).encode("utf-8")
 
 
 def _request_json(request: urllib.request.Request) -> dict:
