@@ -13,6 +13,7 @@ PENDING = "pending"
 RUNNING = "running"
 SUCCEEDED = "succeeded"
 FAILED = "failed"
+TERMINAL_STATUSES = (SUCCEEDED, FAILED)
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,28 @@ class JobStore:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
         return _row_to_job(row) if row else None
+
+    def list_jobs(self) -> list[JobRecord]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM jobs ORDER BY created_at ASC").fetchall()
+        return [_row_to_job(row) for row in rows]
+
+    def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
+        placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM jobs
+                WHERE status IN ({placeholders}) AND updated_at < ?
+                ORDER BY updated_at ASC
+                """,
+                (*TERMINAL_STATUSES, cutoff),
+            ).fetchall()
+        return [_row_to_job(row) for row in rows]
+
+    def delete_job(self, job_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
 
     def mark_running(self, job_id: str) -> None:
         self._update(job_id, status=RUNNING, error_message=None)

@@ -107,6 +107,28 @@ python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercia
 
 The service must not start with `pretrained_weights/insightface` present.
 
+## Job Cleanup
+
+API uploads and outputs are stored under `LIVEPORTRAIT_API_DATA_DIR`. Use the
+cleanup script to remove old finished jobs so this directory does not grow
+forever.
+
+Dry run first:
+
+```powershell
+python scripts\cleanup_api_jobs.py --older-than-days 7 --dry-run
+```
+
+Delete matched jobs:
+
+```powershell
+python scripts\cleanup_api_jobs.py --older-than-days 7
+```
+
+The cleanup only removes jobs whose status is `succeeded` or `failed` and whose
+`updated_at` timestamp is older than the retention window. Jobs that are still
+`pending` or `running` are skipped.
+
 ## Local Smoke Test - 2026-07-08
 
 Environment:

@@ -1,0 +1,86 @@
+# coding: utf-8
+
+import sqlite3
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+
+def test_cleanup_finished_jobs_removes_only_old_terminal_jobs(tmp_path):
+    from src.api.cleanup import cleanup_finished_jobs
+    from src.api.storage import FAILED, RUNNING, SUCCEEDED, JobStore
+
+    store = JobStore(tmp_path / "api-data" / "jobs.sqlite3")
+    jobs_dir = tmp_path / "api-data" / "jobs"
+    now = datetime(2026, 7, 8, tzinfo=timezone.utc)
+
+    old_succeeded = _create_job(store, jobs_dir, "old-succeeded")
+    old_failed = _create_job(store, jobs_dir, "old-failed")
+    old_running = _create_job(store, jobs_dir, "old-running")
+    fresh_succeeded = _create_job(store, jobs_dir, "fresh-succeeded")
+
+    store.mark_succeeded(old_succeeded, jobs_dir / old_succeeded / "outputs" / "result.jpg")
+    store.mark_failed(old_failed, "failed")
+    store.mark_running(old_running)
+    store.mark_succeeded(fresh_succeeded, jobs_dir / fresh_succeeded / "outputs" / "result.jpg")
+    _set_updated_at(store.db_path, old_succeeded, now - timedelta(days=10))
+    _set_updated_at(store.db_path, old_failed, now - timedelta(days=10))
+    _set_updated_at(store.db_path, old_running, now - timedelta(days=10))
+    _set_updated_at(store.db_path, fresh_succeeded, now - timedelta(days=1))
+
+    result = cleanup_finished_jobs(store, jobs_dir, older_than_days=7, now=now)
+
+    assert result.deleted_jobs == 2
+    assert result.skipped_active_jobs == 1
+    assert store.get_job(old_succeeded) is None
+    assert store.get_job(old_failed) is None
+    assert store.get_job(old_running).status == RUNNING
+    assert store.get_job(fresh_succeeded).status == SUCCEEDED
+    assert not (jobs_dir / old_succeeded).exists()
+    assert not (jobs_dir / old_failed).exists()
+    assert (jobs_dir / old_running).exists()
+    assert (jobs_dir / fresh_succeeded).exists()
+
+
+def test_cleanup_finished_jobs_dry_run_keeps_files_and_rows(tmp_path):
+    from src.api.cleanup import cleanup_finished_jobs
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "api-data" / "jobs.sqlite3")
+    jobs_dir = tmp_path / "api-data" / "jobs"
+    now = datetime(2026, 7, 8, tzinfo=timezone.utc)
+    job_id = _create_job(store, jobs_dir, "old-succeeded")
+    store.mark_succeeded(job_id, jobs_dir / job_id / "outputs" / "result.jpg")
+    _set_updated_at(store.db_path, job_id, now - timedelta(days=10))
+
+    result = cleanup_finished_jobs(store, jobs_dir, older_than_days=7, now=now, dry_run=True)
+
+    assert result.deleted_jobs == 0
+    assert result.matched_jobs == 1
+    assert store.get_job(job_id) is not None
+    assert (jobs_dir / job_id).exists()
+
+
+def _create_job(store, jobs_dir: Path, job_id: str) -> str:
+    job_dir = jobs_dir / job_id
+    upload_dir = job_dir / "uploads"
+    output_dir = job_dir / "outputs"
+    upload_dir.mkdir(parents=True)
+    output_dir.mkdir()
+    source_path = upload_dir / "source.jpg"
+    driving_path = upload_dir / "driving.jpg"
+    source_path.write_bytes(f"{job_id}-source".encode("utf-8"))
+    driving_path.write_bytes(f"{job_id}-driving".encode("utf-8"))
+    (output_dir / "result.jpg").write_bytes(b"result")
+    return store.create_job(
+        source_filename="source.jpg",
+        driving_filename="driving.jpg",
+        source_path=source_path,
+        driving_path=driving_path,
+        output_dir=output_dir,
+        job_id=job_id,
+    ).job_id
+
+
+def _set_updated_at(db_path: Path, job_id: str, value: datetime) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE jobs SET updated_at = ? WHERE job_id = ?", (value.isoformat(), job_id))
