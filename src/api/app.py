@@ -9,6 +9,7 @@ from typing import Dict
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.utils.commercial_safety import assert_commercial_safe_environment
 
@@ -19,6 +20,7 @@ from .storage import JobRecord, JobStore, PENDING, SUCCEEDED
 
 SOURCE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 DRIVING_EXTENSIONS = {".jpg", ".jpeg", ".png", ".mp4", ".pkl"}
+STATIC_DIR = Path(__file__).with_name("static")
 
 
 def create_app(
@@ -49,6 +51,12 @@ def create_app(
         worker = threading.Thread(target=_worker_loop, args=(queue, store, runner), daemon=True)
         worker.start()
         app.state.worker = worker
+
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def frontend():
+        return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/api/health")
     def health() -> Dict[str, str]:

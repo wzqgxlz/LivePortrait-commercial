@@ -5,6 +5,30 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
+def test_frontend_page_and_assets_are_served(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        page_response = client.get("/")
+        script_response = client.get("/static/app.js")
+        style_response = client.get("/static/styles.css")
+
+        assert page_response.status_code == 200
+        assert "LivePortrait" in page_response.text
+        assert 'id="source"' in page_response.text
+        assert 'id="driving"' in page_response.text
+        assert script_response.status_code == 200
+        assert "createJob" in script_response.text
+        assert style_response.status_code == 200
+
+
 def test_create_job_saves_uploads_and_returns_pending_status(tmp_path):
     from src.api.app import create_app
     from src.api.config import ApiConfig

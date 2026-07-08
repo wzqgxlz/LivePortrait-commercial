@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LivePortrait</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-labelledby="app-title">
+        <div class="toolbar">
+          <div>
+            <h1 id="app-title">LivePortrait</h1>
+            <p>Humans mode API demo</p>
+          </div>
+          <span id="health" class="status-pill">Checking</span>
+        </div>
+
+        <form id="job-form" class="job-form">
+          <label class="field">
+            <span>API Key</span>
+            <input id="api-key" type="password" autocomplete="off" placeholder="Optional for local testing" />
+          </label>
+
+          <div class="upload-grid">
+            <label class="upload-box">
+              <span>Source image</span>
+              <input id="source" name="source" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />
+            </label>
+
+            <label class="upload-box">
+              <span>Driving image or video</span>
+              <input
+                id="driving"
+                name="driving"
+                type="file"
+                accept=".jpg,.jpeg,.png,.mp4,.pkl,image/jpeg,image/png,video/mp4"
+                required
+              />
+            </label>
+          </div>
+
+          <button id="submit" type="submit">Generate</button>
+        </form>
+      </section>
+
+      <section class="result-panel" aria-labelledby="result-title">
+        <div class="result-header">
+          <h2 id="result-title">Result</h2>
+          <span id="status" class="status-text">Ready</span>
+        </div>
+
+        <div id="details" class="details">No job submitted.</div>
+        <div id="preview" class="preview" aria-live="polite"></div>
+        <a id="download" class="download-link" href="#" download hidden>Download result</a>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

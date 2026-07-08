@@ -13,6 +13,12 @@ Animals mode is not supported by this API.
 uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 ```
 
+Open the minimal upload page at:
+
+```text
+http://127.0.0.1:8000/
+```
+
 Useful environment variables:
 
 ```powershell
@@ -49,6 +55,9 @@ curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
   -F "source=@assets/examples/source/s9.jpg" `
   -F "driving=@assets/examples/driving/d12.jpg"
 ```
+
+The frontend page stores the API Key in the browser's local storage and sends it
+as `x-api-key` when creating jobs, polling status, and downloading results.
 
 ## Endpoints
 
@@ -102,7 +111,7 @@ Run these checks on the deployment machine:
 ```powershell
 python scripts\download_humans_assets.py
 python scripts\commercial_safety_scan.py
-python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercial_safety_guardrails.py tests/test_gpu_migration_scripts.py tests/test_api_service.py -q
+python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercial_safety_guardrails.py tests/test_gpu_migration_scripts.py tests/test_api_service.py tests/test_api_cleanup.py -q
 ```
 
 The service must not start with `pretrained_weights/insightface` present.
