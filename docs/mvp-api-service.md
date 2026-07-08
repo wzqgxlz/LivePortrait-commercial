@@ -41,7 +41,7 @@ Response:
 
 ```json
 {
-  "job_id": "…",
+  "job_id": "<job_id>",
   "status": "pending",
   "source_filename": "source.jpg",
   "driving_filename": "driving.mp4"
@@ -80,3 +80,68 @@ python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercia
 ```
 
 The service must not start with `pretrained_weights/insightface` present.
+
+## Local Smoke Test - 2026-07-08
+
+Environment:
+
+- Machine: local Windows workstation
+- Mode: CPU smoke test
+- API Python: `.\LivePortrait_env\Scripts\python.exe`
+- Source: `assets/examples/source/s9.jpg`
+- Driving: `assets/examples/driving/d12.jpg`
+
+Startup:
+
+```powershell
+cd D:\codex_work\LivePortrait
+$env:LIVEPORTRAIT_API_FORCE_CPU = "1"
+$env:LIVEPORTRAIT_API_PYTHON = ".\LivePortrait_env\Scripts\python.exe"
+.\LivePortrait_env\Scripts\python -m uvicorn src.api.app:app --host 127.0.0.1 --port 8000
+```
+
+Create job:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
+  -F "source=@assets/examples/source/s9.jpg" `
+  -F "driving=@assets/examples/driving/d12.jpg"
+```
+
+Observed job:
+
+```text
+ad27741556c142348232f5c13ce4ef3a
+```
+
+Status check:
+
+```powershell
+curl.exe "http://127.0.0.1:8000/api/jobs/ad27741556c142348232f5c13ce4ef3a"
+```
+
+Observed status:
+
+```text
+succeeded
+```
+
+Server-side result:
+
+```text
+tmp/api/jobs/ad27741556c142348232f5c13ce4ef3a/outputs/s9--d12.jpg
+```
+
+Download result:
+
+```powershell
+curl.exe -L "http://127.0.0.1:8000/api/jobs/ad27741556c142348232f5c13ce4ef3a/result" -o api_result.jpg
+```
+
+Result:
+
+- `POST /api/jobs` accepted real uploads.
+- The in-process worker completed the LivePortrait Humans mode job.
+- `GET /api/jobs/{job_id}` returned `succeeded`.
+- `GET /api/jobs/{job_id}/result` downloaded a 275,418-byte image.
+- The smoke test passed end to end.
