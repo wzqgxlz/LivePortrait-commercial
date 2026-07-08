@@ -18,7 +18,8 @@ from .crop import (
 )
 from .io import contiguous
 from .rprint import rlog as log
-from .face_analysis_diy import FaceAnalysisDIY
+from .commercial_safety import assert_commercial_safe_environment
+from .mediapipe_face_analysis import MediaPipeFaceAnalysis
 from .human_landmark_runner import LandmarkRunner as HumanLandmark
 
 def make_abs_path(fn):
@@ -40,31 +41,22 @@ class Trajectory:
 
 class Cropper(object):
     def __init__(self, **kwargs) -> None:
+        assert_commercial_safe_environment()
         self.crop_cfg: CropConfig = kwargs.get("crop_cfg", None)
         self.image_type = kwargs.get("image_type", 'human_face')
         device_id = kwargs.get("device_id", 0)
         flag_force_cpu = kwargs.get("flag_force_cpu", False)
         if flag_force_cpu:
             device = "cpu"
-            face_analysis_wrapper_provider = ["CPUExecutionProvider"]
         else:
             try:
                 if torch.backends.mps.is_available():
-                    # Shape inference currently fails with CoreMLExecutionProvider
-                    # for the retinaface model
                     device = "mps"
-                    face_analysis_wrapper_provider = ["CPUExecutionProvider"]
                 else:
                     device = "cuda"
-                    face_analysis_wrapper_provider = ["CUDAExecutionProvider"]
             except:
                     device = "cuda"
-                    face_analysis_wrapper_provider = ["CUDAExecutionProvider"]
-        self.face_analysis_wrapper = FaceAnalysisDIY(
-                    name="buffalo_l",
-                    root=self.crop_cfg.insightface_root,
-                    providers=face_analysis_wrapper_provider,
-                )
+        self.face_analysis_wrapper = MediaPipeFaceAnalysis()
         self.face_analysis_wrapper.prepare(ctx_id=device_id, det_size=(512, 512), det_thresh=self.crop_cfg.det_thresh)
         self.face_analysis_wrapper.warmup()
 
@@ -111,7 +103,7 @@ class Cropper(object):
 
             # NOTE: temporarily only pick the first face, to support multiple face in the future
             src_face = src_face[0]
-            lmk = src_face.landmark_2d_106  # this is the 106 landmarks from insightface
+            lmk = src_face.landmark_2d_106
         else:
             tmp_dct = {
                 'animal_face_9': 'animal_face',
