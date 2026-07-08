@@ -180,9 +180,15 @@ def test_result_endpoint_returns_completed_output(tmp_path):
         store.mark_succeeded(job_id, result_path)
 
         response = client.get(f"/api/jobs/{job_id}/result")
+        status_response = client.get(f"/api/jobs/{job_id}")
+        audit_response = client.get(f"/api/jobs/{job_id}/audit")
 
         assert response.status_code == 200
         assert response.content == b"result"
+        assert status_response.status_code == 200
+        assert status_response.json()["output_sha256"]
+        assert audit_response.status_code == 200
+        assert [event["event_type"] for event in audit_response.json()["events"]] == ["created", "succeeded"]
 
 
 def test_inference_runner_builds_humans_only_command(tmp_path):

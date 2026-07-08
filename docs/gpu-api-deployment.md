@@ -130,6 +130,7 @@ This checks:
 - `GET /api/health`
 - the frontend HTML page
 - that job endpoints reject requests without `x-api-key`
+- that the audit endpoint rejects requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 
 ## 6. Run A Real Smoke Job
@@ -148,6 +149,8 @@ python scripts/smoke_api_job.py \
 This uploads the source and driving files through the API, polls until the job
 finishes, and downloads the generated result. The script submits
 `consent_confirmed=true`, matching the frontend authorization checkbox.
+
+Successful jobs record `output_sha256` and audit events for later traceability.
 
 ## 7. Run With systemd
 

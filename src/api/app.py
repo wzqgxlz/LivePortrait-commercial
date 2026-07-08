@@ -115,6 +115,25 @@ def create_app(
             raise HTTPException(status_code=404, detail="result file not found")
         return FileResponse(job.result_path)
 
+    @app.get("/api/jobs/{job_id}/audit")
+    def get_job_audit(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
+        job = store.get_job(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        events = store.list_audit_events(job_id)
+        return {
+            "job_id": job_id,
+            "events": [
+                {
+                    "event_id": event.event_id,
+                    "event_type": event.event_type,
+                    "metadata": event.metadata,
+                    "created_at": event.created_at,
+                }
+                for event in events
+            ],
+        }
+
     return app
 
 
@@ -166,6 +185,7 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
         "driving_filename": job.driving_filename,
         "source_sha256": job.source_sha256,
         "driving_sha256": job.driving_sha256,
+        "output_sha256": job.output_sha256,
         "consent_confirmed": job.consent_confirmed,
         "usage_policy_version": job.usage_policy_version,
         "created_at": job.created_at,

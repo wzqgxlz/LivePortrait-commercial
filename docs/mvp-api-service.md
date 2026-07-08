@@ -42,6 +42,7 @@ Protected endpoints:
 - `POST /api/jobs`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/result`
+- `GET /api/jobs/{job_id}/audit`
 
 Public endpoint:
 
@@ -109,6 +110,17 @@ GET /api/jobs/{job_id}/result
 ```
 
 Returns `409` until the job has succeeded.
+
+### Get Audit Events
+
+```http
+GET /api/jobs/{job_id}/audit
+```
+
+Returns the job timeline used for support and traceability. Events currently
+include `created`, `running`, `succeeded`, and `failed`. The `created` event
+records input hashes and the authorization policy version. Terminal events
+record the output hash or failure message.
 
 ## Before Serving Users
 
@@ -209,6 +221,7 @@ Result:
 - The in-process worker completed the LivePortrait Humans mode job.
 - `GET /api/jobs/{job_id}` returned `succeeded`.
 - `GET /api/jobs/{job_id}/result` downloaded a 275,418-byte image.
+- The job record includes `output_sha256` after success.
 - The smoke test passed end to end.
 
 ## Frontend Smoke Test - 2026-07-08

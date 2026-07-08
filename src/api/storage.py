@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import hashlib
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -30,10 +31,20 @@ class JobRecord:
     error_message: Optional[str]
     source_sha256: str
     driving_sha256: str
+    output_sha256: Optional[str]
     consent_confirmed: bool
     usage_policy_version: str
     created_at: str
     updated_at: str
+
+
+@dataclass(frozen=True)
+class AuditEvent:
+    event_id: int
+    job_id: str
+    event_type: str
+    metadata: dict
+    created_at: str
 
 
 class JobStore:
@@ -63,10 +74,10 @@ class JobStore:
                 INSERT INTO jobs (
                     job_id, status, source_filename, driving_filename, source_path,
                     driving_path, output_dir, result_path, error_message,
-                    source_sha256, driving_sha256, consent_confirmed,
+                    source_sha256, driving_sha256, output_sha256, consent_confirmed,
                     usage_policy_version, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -80,11 +91,26 @@ class JobStore:
                     None,
                     source_sha256,
                     driving_sha256,
+                    None,
                     1 if consent_confirmed else 0,
                     usage_policy_version,
                     now,
                     now,
                 ),
+            )
+            self._insert_audit_event(
+                conn,
+                job_id,
+                "created",
+                {
+                    "source_filename": source_filename,
+                    "driving_filename": driving_filename,
+                    "source_sha256": source_sha256,
+                    "driving_sha256": driving_sha256,
+                    "consent_confirmed": consent_confirmed,
+                    "usage_policy_version": usage_policy_version,
+                },
+                now,
             )
         return self.get_job(job_id)
 
@@ -113,23 +139,42 @@ class JobStore:
 
     def delete_job(self, job_id: str) -> None:
         with self._connect() as conn:
+            conn.execute("DELETE FROM job_audit_events WHERE job_id = ?", (job_id,))
             conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
 
     def mark_running(self, job_id: str) -> None:
-        self._update(job_id, status=RUNNING, error_message=None)
+        self._update(job_id, "running", status=RUNNING, error_message=None)
 
     def mark_succeeded(self, job_id: str, result_path: Path) -> None:
-        self._update(job_id, status=SUCCEEDED, result_path=str(result_path), error_message=None)
+        output_sha256 = sha256_file(result_path)
+        self._update(
+            job_id,
+            "succeeded",
+            status=SUCCEEDED,
+            result_path=str(result_path),
+            output_sha256=output_sha256,
+            error_message=None,
+        )
 
     def mark_failed(self, job_id: str, error_message: str) -> None:
-        self._update(job_id, status=FAILED, error_message=error_message)
+        self._update(job_id, "failed", status=FAILED, error_message=error_message)
 
-    def _update(self, job_id: str, **fields) -> None:
-        fields["updated_at"] = _now()
+    def list_audit_events(self, job_id: str) -> list[AuditEvent]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM job_audit_events WHERE job_id = ? ORDER BY event_id ASC",
+                (job_id,),
+            ).fetchall()
+        return [_row_to_audit_event(row) for row in rows]
+
+    def _update(self, job_id: str, event_type: str, **fields) -> None:
+        now = _now()
+        fields["updated_at"] = now
         assignments = ", ".join(f"{key} = ?" for key in fields)
         values = list(fields.values()) + [job_id]
         with self._connect() as conn:
             conn.execute(f"UPDATE jobs SET {assignments} WHERE job_id = ?", values)
+            self._insert_audit_event(conn, job_id, event_type, _event_metadata(fields), now)
 
     def _init_db(self) -> None:
         with self._connect() as conn:
@@ -147,6 +192,7 @@ class JobStore:
                     error_message TEXT,
                     source_sha256 TEXT NOT NULL,
                     driving_sha256 TEXT NOT NULL,
+                    output_sha256 TEXT,
                     consent_confirmed INTEGER NOT NULL DEFAULT 0,
                     usage_policy_version TEXT NOT NULL DEFAULT 'legacy',
                     created_at TEXT NOT NULL,
@@ -154,8 +200,37 @@ class JobStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_audit_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(job_id) REFERENCES jobs(job_id) ON DELETE CASCADE
+                )
+                """
+            )
+            _ensure_column(conn, "jobs", "output_sha256", "TEXT")
             _ensure_column(conn, "jobs", "consent_confirmed", "INTEGER NOT NULL DEFAULT 0")
             _ensure_column(conn, "jobs", "usage_policy_version", "TEXT NOT NULL DEFAULT 'legacy'")
+
+    def _insert_audit_event(
+        self,
+        conn: sqlite3.Connection,
+        job_id: str,
+        event_type: str,
+        metadata: dict,
+        created_at: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO job_audit_events (job_id, event_type, metadata_json, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (job_id, event_type, json.dumps(metadata, sort_keys=True), created_at),
+        )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -184,6 +259,7 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
         error_message=row["error_message"],
         source_sha256=row["source_sha256"],
         driving_sha256=row["driving_sha256"],
+        output_sha256=row["output_sha256"],
         consent_confirmed=bool(row["consent_confirmed"]),
         usage_policy_version=row["usage_policy_version"],
         created_at=row["created_at"],
@@ -191,8 +267,24 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
     )
 
 
+def _row_to_audit_event(row: sqlite3.Row) -> AuditEvent:
+    return AuditEvent(
+        event_id=row["event_id"],
+        job_id=row["job_id"],
+        event_type=row["event_type"],
+        metadata=json.loads(row["metadata_json"]),
+        created_at=row["created_at"],
+    )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _event_metadata(fields: dict) -> dict:
+    metadata = dict(fields)
+    metadata.pop("updated_at", None)
+    return metadata
 
 
 def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
