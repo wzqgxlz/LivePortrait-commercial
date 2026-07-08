@@ -1,0 +1,107 @@
+# coding: utf-8
+
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+
+def test_create_job_saves_uploads_and_returns_pending_status(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            files={
+                "source": ("source.jpg", b"source-bytes", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving-bytes", "image/jpeg"),
+            },
+        )
+
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["status"] == "pending"
+        assert payload["job_id"]
+        assert (tmp_path / "api-data" / "jobs" / payload["job_id"] / "uploads" / "source.jpg").exists()
+
+        status_response = client.get(f"/api/jobs/{payload['job_id']}")
+        assert status_response.status_code == 200
+        assert status_response.json()["source_filename"] == "source.jpg"
+
+
+def test_create_job_rejects_unsupported_source_type(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            files={
+                "source": ("source.gif", b"bad", "image/gif"),
+                "driving": ("driving.jpg", b"ok", "image/jpeg"),
+            },
+        )
+
+        assert response.status_code == 400
+        assert "source" in response.json()["detail"]
+
+
+def test_result_endpoint_returns_completed_output(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/api/jobs",
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        job_id = create_response.json()["job_id"]
+        store = app.state.job_store
+        result_path = tmp_path / "api-data" / "jobs" / job_id / "outputs" / "result.jpg"
+        result_path.parent.mkdir(parents=True)
+        result_path.write_bytes(b"result")
+        store.mark_succeeded(job_id, result_path)
+
+        response = client.get(f"/api/jobs/{job_id}/result")
+
+        assert response.status_code == 200
+        assert response.content == b"result"
+
+
+def test_inference_runner_builds_humans_only_command(tmp_path):
+    from src.api.config import ApiConfig
+    from src.api.runner import InferenceRunner
+
+    cfg = ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data", force_cpu=True)
+    runner = InferenceRunner(cfg)
+    command = runner.build_command(
+        source_path=Path("source.jpg"),
+        driving_path=Path("driving.mp4"),
+        output_dir=Path("outputs"),
+    )
+
+    assert command[:2] == [cfg.python_executable, "inference.py"]
+    assert "inference_animals.py" not in command
+    assert "--flag-force-cpu" in command
+    assert "--no-flag-use-half-precision" in command
