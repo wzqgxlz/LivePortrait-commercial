@@ -50,6 +50,60 @@ def test_mediapipe_adapter_sorts_and_limits_detected_faces(monkeypatch):
     assert np.allclose(faces[1].bbox, np.array([20.0, 10.0, 60.0, 30.0], dtype=np.float32))
 
 
+def test_mediapipe_adapter_imports_with_tasks_only_runtime(monkeypatch):
+    sys.modules.pop("src.utils.mediapipe_face_analysis", None)
+    _install_lightweight_runtime_stubs()
+    sys.modules["mediapipe"] = types.SimpleNamespace(
+        Image=object,
+        ImageFormat=types.SimpleNamespace(SRGB="SRGB"),
+        tasks=types.SimpleNamespace(),
+    )
+
+    mediapipe_module = importlib.import_module("src.utils.mediapipe_face_analysis")
+
+    assert mediapipe_module.mp_face_detection is None
+
+
+def test_mediapipe_adapter_reads_tasks_detection_score(monkeypatch):
+    _install_lightweight_runtime_stubs()
+    mediapipe_module = importlib.import_module("src.utils.mediapipe_face_analysis")
+    detection = types.SimpleNamespace(
+        categories=[types.SimpleNamespace(score=0.87)],
+    )
+
+    assert mediapipe_module._score_from_detection(detection) == 0.87
+
+
+def test_cropper_uses_crop_config_force_cpu_for_landmark_runner(monkeypatch):
+    sys.modules.pop("src.utils.cropper", None)
+    _install_lightweight_runtime_stubs()
+    cropper_module = importlib.import_module("src.utils.cropper")
+    providers = []
+
+    class FakeFaceAnalysis:
+        def prepare(self, **kwargs):
+            pass
+
+        def warmup(self):
+            pass
+
+    class FakeHumanLandmark:
+        def __init__(self, **kwargs):
+            providers.append(kwargs["onnx_provider"])
+
+        def warmup(self):
+            pass
+
+    monkeypatch.setattr(cropper_module, "MediaPipeFaceAnalysis", FakeFaceAnalysis)
+    monkeypatch.setattr(cropper_module, "HumanLandmark", FakeHumanLandmark)
+    from src.config.crop_config import CropConfig
+
+    cfg = CropConfig(flag_force_cpu=True)
+    cropper_module.Cropper(crop_cfg=cfg)
+
+    assert providers == ["cpu"]
+
+
 def _fake_detection(xmin, ymin, width, height, score):
     relative_bounding_box = types.SimpleNamespace(
         xmin=xmin,

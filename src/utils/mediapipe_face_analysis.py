@@ -1,6 +1,7 @@
 # coding: utf-8
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 
 import cv2
@@ -14,9 +15,24 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by runtime environme
 from .rprint import rlog as log
 
 if mp is not None:
-    mp_face_detection = mp.solutions.face_detection
+    mp_face_detection = getattr(getattr(mp, "solutions", None), "face_detection", None)
 else:
     mp_face_detection = None
+
+try:
+    from mediapipe.tasks.python import vision as mp_tasks_vision
+    from mediapipe.tasks.python.core.base_options import BaseOptions as MPBaseOptions
+except (AttributeError, ImportError, ModuleNotFoundError):
+    mp_tasks_vision = None
+    MPBaseOptions = None
+
+
+DEFAULT_TASKS_MODEL_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "pretrained_weights"
+    / "mediapipe"
+    / "blaze_face_short_range.tflite"
+)
 
 
 @dataclass
@@ -56,19 +72,37 @@ class MediaPipeFaceAnalysis:
         self.model_selection = model_selection
         self.min_detection_confidence = min_detection_confidence
         self.det_thresh = min_detection_confidence
+        self.model_path = Path(kwargs.get("model_path", DEFAULT_TASKS_MODEL_PATH))
         self.detector = None
+        self.detector_backend = None
 
     def prepare(self, ctx_id=0, det_size=(512, 512), det_thresh=0.5):
-        if mp_face_detection is None:
+        if mp_face_detection is None and (mp_tasks_vision is None or MPBaseOptions is None):
             raise ImportError(
                 "mediapipe is required for commercial-safe face detection. "
                 "Install it with `pip install mediapipe`."
             )
         self.det_thresh = det_thresh
-        self.detector = mp_face_detection.FaceDetection(
-            model_selection=self.model_selection,
+        if mp_face_detection is not None:
+            self.detector = mp_face_detection.FaceDetection(
+                model_selection=self.model_selection,
+                min_detection_confidence=det_thresh,
+            )
+            self.detector_backend = "solutions"
+            return
+
+        if not self.model_path.exists():
+            raise FileNotFoundError(
+                "MediaPipe Tasks face detector model is missing. "
+                f"Expected: {self.model_path}"
+            )
+        options = mp_tasks_vision.FaceDetectorOptions(
+            base_options=MPBaseOptions(model_asset_path=str(self.model_path)),
+            running_mode=mp_tasks_vision.RunningMode.IMAGE,
             min_detection_confidence=det_thresh,
         )
+        self.detector = mp_tasks_vision.FaceDetector.create_from_options(options)
+        self.detector_backend = "tasks"
 
     def warmup(self):
         if self.detector is None:
@@ -85,18 +119,25 @@ class MediaPipeFaceAnalysis:
         direction = kwargs.get("direction", "large-small")
 
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        results = self.detector.process(img_rgb)
+        if self.detector_backend == "tasks":
+            results = self.detector.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb))
+        else:
+            results = self.detector.process(img_rgb)
         detections = getattr(results, "detections", None) or []
 
         faces = []
         h, w = img_bgr.shape[:2]
         for detection in detections:
-            score = float(detection.score[0]) if getattr(detection, "score", None) else 0.0
+            score = _score_from_detection(detection)
             if score < self.det_thresh:
                 continue
 
-            bbox = _bbox_from_detection(detection, w, h)
-            kps = _keypoints_from_detection(detection, w, h)
+            if self.detector_backend == "tasks":
+                bbox = _bbox_from_tasks_detection(detection, w, h)
+                kps = _keypoints_from_tasks_detection(detection, w, h)
+            else:
+                bbox = _bbox_from_detection(detection, w, h)
+                kps = _keypoints_from_detection(detection, w, h)
             landmark_2d_106 = _landmark_106_from_bbox_and_keypoints(bbox, kps)
             faces.append(
                 MediaPipeFace(
@@ -122,11 +163,39 @@ def _bbox_from_detection(detection, width: int, height: int) -> np.ndarray:
     return np.array([x1, y1, x2, y2], dtype=np.float32)
 
 
+def _score_from_detection(detection) -> float:
+    score = getattr(detection, "score", None)
+    if score:
+        return float(score[0])
+
+    categories = getattr(detection, "categories", None)
+    if categories:
+        return float(categories[0].score)
+
+    return 0.0
+
+
 def _keypoints_from_detection(detection, width: int, height: int) -> Optional[np.ndarray]:
     relative_keypoints = getattr(detection.location_data, "relative_keypoints", None)
     if not relative_keypoints:
         return None
     return np.array([[point.x * width, point.y * height] for point in relative_keypoints], dtype=np.float32)
+
+
+def _bbox_from_tasks_detection(detection, width: int, height: int) -> np.ndarray:
+    bbox = detection.bounding_box
+    x1 = np.clip(bbox.origin_x, 0, width)
+    y1 = np.clip(bbox.origin_y, 0, height)
+    x2 = np.clip(bbox.origin_x + bbox.width, 0, width)
+    y2 = np.clip(bbox.origin_y + bbox.height, 0, height)
+    return np.array([x1, y1, x2, y2], dtype=np.float32)
+
+
+def _keypoints_from_tasks_detection(detection, width: int, height: int) -> Optional[np.ndarray]:
+    keypoints = getattr(detection, "keypoints", None)
+    if not keypoints:
+        return None
+    return np.array([[point.x * width, point.y * height] for point in keypoints], dtype=np.float32)
 
 
 def _landmark_106_from_bbox_and_keypoints(bbox: np.ndarray, kps: Optional[np.ndarray]) -> np.ndarray:
