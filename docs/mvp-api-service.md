@@ -202,3 +202,59 @@ Result:
 - `GET /api/jobs/{job_id}` returned `succeeded`.
 - `GET /api/jobs/{job_id}/result` downloaded a 275,418-byte image.
 - The smoke test passed end to end.
+
+## Frontend Smoke Test - 2026-07-08
+
+Environment:
+
+- Machine: local Windows workstation
+- Mode: CPU smoke test
+- API Python: `.\LivePortrait_env\Scripts\python.exe`
+- API URL: `http://127.0.0.1:8771/`
+- API Key: configured with `LIVEPORTRAIT_API_KEY`
+- Source: `assets/examples/source/s9.jpg`
+- Driving: `assets/examples/driving/d12.jpg`
+
+Startup:
+
+```powershell
+cd D:\codex_work\LivePortrait
+$env:LIVEPORTRAIT_API_FORCE_CPU = "1"
+$env:LIVEPORTRAIT_API_PYTHON = ".\LivePortrait_env\Scripts\python.exe"
+$env:LIVEPORTRAIT_API_DATA_DIR = "tmp/api-frontend-smoke"
+$env:LIVEPORTRAIT_API_KEY = "frontend-smoke-key"
+.\LivePortrait_env\Scripts\python -m uvicorn src.api.app:app --host 127.0.0.1 --port 8771
+```
+
+Browser flow:
+
+- Opened the frontend page.
+- Entered the API Key.
+- Selected the source image and driving image.
+- Submitted the job from the page.
+- Waited for the page to poll the job status.
+- Confirmed the generated result preview appeared.
+- Downloaded the result from the page.
+
+Observed job:
+
+```text
+811a3426c9d041f996d65639aad8bf2c
+```
+
+Observed status:
+
+```text
+succeeded
+```
+
+Result:
+
+- The frontend submitted real uploads through `POST /api/jobs`.
+- The frontend sent `x-api-key` for job creation, polling, and result download.
+- The page showed service health as `Online`.
+- The page reached `succeeded` without manual command-line polling.
+- The page displayed a generated image preview.
+- The downloaded result was a 275,418-byte image.
+- The preview image measured 720 x 1280.
+- The page had no horizontal overflow at 1280 px desktop width.
