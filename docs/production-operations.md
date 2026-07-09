@@ -123,6 +123,15 @@ Review recent cleanup records through the API or frontend:
 GET /api/cleanup-runs?limit=20
 ```
 
+The frontend Cleanup runs panel can also start a cleanup. Use `Dry run` first.
+Actual deletion requires the confirmed delete action, which sends:
+
+```http
+POST /api/cleanup-runs
+```
+
+with `dry_run=false` and `confirm_delete=true`.
+
 Keep `cleanup-runs.jsonl` with the API data directory. It is the lightweight
 retention/deletion evidence for this MVP.
 

@@ -39,8 +39,8 @@ wrapper:
 - Authorization-reference filtering and grouped authorization export.
 - Upload type/size limits and active queue limit.
 - Recent job status filtering for lightweight operations triage.
-- Cleanup run records and read-only cleanup history view for
-  retention/deletion evidence.
+- Cleanup run records, dry-run cleanup action, confirmed cleanup action, and
+  cleanup history view for retention/deletion evidence.
 - GPU deployment and smoke-test scripts.
 
 ## Core Commercial-Safety Deliverables
@@ -59,7 +59,7 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, single-job export, authorization-reference export, cleanup run history, and health checks. |
+| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, single-job export, authorization-reference export, cleanup run history/action, and health checks. |
 | API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, API Key, upload limit, and active job limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
 | SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, lightweight authorization metadata, audit events, output metadata, and recent-job authorization filters. |
@@ -70,8 +70,8 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, cleanup run history, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, authorization filters, grouped authorization export, cleanup run history, and authorization-aware job detail rendering. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, cleanup dry-run/delete controls, cleanup run history, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, authorization filters, grouped authorization export, cleanup dry-run/delete requests, cleanup run history, and authorization-aware job detail rendering. |
 | Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, cleanup run rows, and job detail styling. |
 
 ## Frontend Features Delivered
@@ -92,6 +92,7 @@ wrapper:
   reference.
 - Authorization-reference JSON export from the Recent jobs panel.
 - Cleanup runs panel showing recent retention/deletion records.
+- Cleanup dry-run and confirmed delete controls for old terminal jobs.
 - Job detail panel with status, Job ID, filenames, authorization metadata,
   timestamps, input hashes, output hash, and failure reason.
 - Clear button for the current selected job.
@@ -109,7 +110,7 @@ wrapper:
 | systemd environment template | `deploy/liveportrait-api.env.example` | Production-style environment variables for API deployment. |
 | systemd service template | `deploy/liveportrait-api.service` | Example Linux service unit for long-running API deployment. |
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
-| Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, and cleanup run history protection. |
+| Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, cleanup run history protection, and cleanup action protection. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
@@ -132,7 +133,7 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| API service tests | `tests/test_api_service.py` | Covers frontend static assets, job creation, consent, API Key auth, result endpoint, audit export, authorization filters/export, cleanup run history, upload validation, and queue limit behavior. |
+| API service tests | `tests/test_api_service.py` | Covers frontend static assets, job creation, consent, API Key auth, result endpoint, audit export, authorization filters/export, cleanup run history/action, upload validation, and queue limit behavior. |
 | API storage tests | `tests/test_api_storage.py` | Covers SQLite job persistence, hashes, status transitions, audit records, and authorization metadata filters. |
 | API cleanup tests | `tests/test_api_cleanup.py` | Covers deletion behavior for old terminal jobs and cleanup run record reading. |
 | Deployment script tests | `tests/test_deployment_scripts.py` | Covers deployment scripts, env templates, docs, auth checks, and smoke-job script expectations. |
@@ -154,7 +155,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-49 passed
+51 passed
 Commercial safety scan passed.
 ```
 

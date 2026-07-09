@@ -173,6 +173,12 @@
           <div class="history-header">
             <h2 id="cleanup-runs-title">Cleanup runs</h2>
             <div class="history-tools">
+              <label class="compact-field">
+                <span>Days</span>
+                <input id="cleanup-older-than-days" type="number" min="1" max="365" value="7" />
+              </label>
+              <button id="cleanup-dry-run" class="secondary-button" type="button">Dry run</button>
+              <button id="cleanup-delete" class="secondary-button danger-button" type="button">Delete old</button>
               <button id="refresh-cleanup-runs" class="secondary-button" type="button">Refresh</button>
             </div>
           </div>

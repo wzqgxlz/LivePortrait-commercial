@@ -103,6 +103,7 @@ p,
 
 input[type="password"],
 input[type="text"],
+input[type="number"],
 input[type="file"],
 select {
   width: 100%;
@@ -114,7 +115,8 @@ select {
 }
 
 input[type="password"],
-input[type="text"] {
+input[type="text"],
+input[type="number"] {
   min-height: 42px;
   padding: 0 12px;
 }
@@ -416,6 +418,15 @@ button:disabled {
 
 .secondary-button:hover {
   background: #eef2ed;
+}
+
+.danger-button {
+  border-color: #d5a48b;
+  color: #7d3518;
+}
+
+.danger-button:hover {
+  background: #fff0e8;
 }
 
 .jobs-list,

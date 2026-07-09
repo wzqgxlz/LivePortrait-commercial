@@ -8,13 +8,13 @@ from pathlib import Path
 from queue import Queue
 from typing import Dict
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.utils.commercial_safety import assert_commercial_safe_environment
 
-from .cleanup import list_cleanup_records
+from .cleanup import CleanupResult, cleanup_finished_jobs, list_cleanup_records
 from .config import ApiConfig
 from .runner import InferenceRunner
 from .storage import (
@@ -97,6 +97,28 @@ def create_app(
             "cleanup_record_path": str(record_path),
             "records": list_cleanup_records(record_path, limit=limit),
         }
+
+    @app.post("/api/cleanup-runs", status_code=201)
+    def create_cleanup_run(
+        payload: dict = Body(default_factory=dict),
+        _: None = Depends(require_api_key),
+    ) -> Dict[str, object]:
+        older_than_days = _int_payload_value(payload, "older_than_days", default=7)
+        dry_run = _bool_payload_value(payload, "dry_run", default=True)
+        confirm_delete = _bool_payload_value(payload, "confirm_delete", default=False)
+        if not dry_run and not confirm_delete:
+            raise HTTPException(status_code=400, detail="confirm_delete=true is required before deleting jobs")
+        try:
+            result = cleanup_finished_jobs(
+                store=store,
+                jobs_dir=cfg.jobs_dir,
+                older_than_days=older_than_days,
+                dry_run=dry_run,
+                cleanup_record_path=cfg.resolved_data_dir / "cleanup-runs.jsonl",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _cleanup_result_payload(result, older_than_days=older_than_days, dry_run=dry_run)
 
     @app.post("/api/jobs", status_code=201)
     def create_job(
@@ -346,6 +368,26 @@ def _clean_optional_form_value(value: str | None) -> str | None:
     return cleaned or None
 
 
+def _int_payload_value(payload: dict, key: str, default: int) -> int:
+    try:
+        return int(payload.get(key, default))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"{key} must be an integer") from exc
+
+
+def _bool_payload_value(payload: dict, key: str, default: bool) -> bool:
+    value = payload.get(key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes"}:
+            return True
+        if normalized in {"0", "false", "no"}:
+            return False
+    return bool(value)
+
+
 def _normalized_content_type(content_type: str | None) -> str:
     value = (content_type or "application/octet-stream").split(";", 1)[0].strip().lower()
     return value or "application/octet-stream"
@@ -396,6 +438,24 @@ def _audit_event_payload(event) -> Dict[str, object]:
         "event_type": event.event_type,
         "metadata": event.metadata,
         "created_at": event.created_at,
+    }
+
+
+def _cleanup_result_payload(
+    result: CleanupResult,
+    older_than_days: int,
+    dry_run: bool,
+) -> Dict[str, object]:
+    return {
+        "older_than_days": older_than_days,
+        "dry_run": dry_run,
+        "matched_jobs": result.matched_jobs,
+        "deleted_jobs": result.deleted_jobs,
+        "skipped_active_jobs": result.skipped_active_jobs,
+        "removed_bytes": result.removed_bytes,
+        "matched_job_ids": list(result.matched_job_ids),
+        "deleted_job_ids": list(result.deleted_job_ids),
+        "cleanup_record_path": str(result.cleanup_record_path) if result.cleanup_record_path else None,
     }
 
 

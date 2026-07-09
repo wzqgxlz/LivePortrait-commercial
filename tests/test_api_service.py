@@ -1,6 +1,8 @@
 # coding: utf-8
 
 import json
+import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -44,6 +46,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="export-authorization-record"' in page_response.text
         assert 'id="cleanup-runs-list"' in page_response.text
         assert 'id="refresh-cleanup-runs"' in page_response.text
+        assert 'id="cleanup-older-than-days"' in page_response.text
+        assert 'id="cleanup-dry-run"' in page_response.text
+        assert 'id="cleanup-delete"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
         assert 'id="authorization-reviewer"' in page_response.text
@@ -67,6 +72,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "exportAuthorizationRecord" in script_response.text
         assert "loadCleanupRuns" in script_response.text
         assert "renderCleanupRuns" in script_response.text
+        assert "runCleanup" in script_response.text
         assert "status=" in script_response.text
         assert "authorization_reference=" in script_response.text
         assert "loadAuditExport" in script_response.text
@@ -446,6 +452,69 @@ def test_cleanup_runs_endpoint_returns_recent_records(tmp_path):
     assert response.json()["records"][0]["deleted_job_ids"] == ["third"]
 
 
+def test_create_cleanup_run_dry_run_records_preview_without_deleting(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    data_dir = tmp_path / "api-data"
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=data_dir),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        job_id = create_response.json()["job_id"]
+        result_path = data_dir / "jobs" / job_id / "outputs" / "result.jpg"
+        result_path.parent.mkdir(parents=True)
+        result_path.write_bytes(b"result")
+        app.state.job_store.mark_succeeded(job_id, result_path)
+        _set_job_updated_at(app.state.job_store.db_path, job_id, datetime.now(timezone.utc) - timedelta(days=10))
+
+        cleanup_response = client.post(
+            "/api/cleanup-runs",
+            json={"older_than_days": 7, "dry_run": True},
+        )
+
+        assert cleanup_response.status_code == 201
+        payload = cleanup_response.json()
+        assert payload["matched_jobs"] == 1
+        assert payload["deleted_jobs"] == 0
+        assert payload["dry_run"] is True
+        assert app.state.job_store.get_job(job_id) is not None
+        assert (data_dir / "jobs" / job_id).exists()
+        records_response = client.get("/api/cleanup-runs?limit=1")
+        assert records_response.json()["records"][0]["matched_job_ids"] == [job_id]
+
+
+def test_create_cleanup_run_rejects_delete_without_confirmation(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/cleanup-runs",
+            json={"older_than_days": 7, "dry_run": False},
+        )
+
+    assert response.status_code == 400
+    assert "confirm" in response.json()["detail"]
+
+
 def test_create_job_rejects_unsupported_source_type(tmp_path):
     from src.api.app import create_app
     from src.api.config import ApiConfig
@@ -573,11 +642,16 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
             "/api/authorization-records/export?authorization_reference=CRM-2026-0001"
         )
         cleanup_runs_response = client.get("/api/cleanup-runs")
+        cleanup_create_response = client.post(
+            "/api/cleanup-runs",
+            json={"older_than_days": 7, "dry_run": True},
+        )
         assert result_response.status_code == 401
         assert list_response.status_code == 401
         assert export_response.status_code == 401
         assert authorization_export_response.status_code == 401
         assert cleanup_runs_response.status_code == 401
+        assert cleanup_create_response.status_code == 401
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):
@@ -642,3 +716,8 @@ def test_inference_runner_builds_humans_only_command(tmp_path):
     assert "inference_animals.py" not in command
     assert "--flag-force-cpu" in command
     assert "--no-flag-use-half-precision" in command
+
+
+def _set_job_updated_at(db_path: Path, job_id: str, value: datetime) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE jobs SET updated_at = ? WHERE job_id = ?", (value.isoformat(), job_id))

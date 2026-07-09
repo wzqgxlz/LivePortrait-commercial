@@ -54,6 +54,7 @@ Protected endpoints:
 - `GET /api/jobs/{job_id}/export`
 - `GET /api/authorization-records/export`
 - `GET /api/cleanup-runs`
+- `POST /api/cleanup-runs`
 
 Public endpoint:
 
@@ -79,8 +80,8 @@ audit export. Operators can filter recent jobs by job status, authorization
 status, and authorization reference, then export a JSON package for all recent
 jobs attached to one authorization reference. The page also includes API Key
 guidance, an empty state for first-time users, a completion panel after
-successful generation, and a read-only Cleanup runs panel for recent retention
-activity.
+successful generation, and a Cleanup runs panel for dry-run previews, confirmed
+cleanup, and recent retention activity.
 
 ## Endpoints
 
@@ -228,6 +229,34 @@ window, dry-run flag, matched/deleted/skipped counts, removed bytes, and matched
 or deleted job IDs. This endpoint is read-only and is protected by the API Key
 when `LIVEPORTRAIT_API_KEY` is set.
 
+### Create Cleanup Run
+
+```http
+POST /api/cleanup-runs
+```
+
+JSON body:
+
+```json
+{
+  "older_than_days": 7,
+  "dry_run": true
+}
+```
+
+Dry-run mode records what would be cleaned without deleting files or database
+rows. To delete old terminal jobs, the request must explicitly include both:
+
+```json
+{
+  "older_than_days": 7,
+  "dry_run": false,
+  "confirm_delete": true
+}
+```
+
+The endpoint rejects delete requests without `confirm_delete=true`.
+
 ## Before Serving Users
 
 Run these checks on the deployment machine:
@@ -271,7 +300,8 @@ Every cleanup run appends a JSON line to:
 Each record includes the run timestamp, retention window, dry-run flag, matched
 job IDs, deleted job IDs, skipped active job count, and removed byte count.
 The frontend and `GET /api/cleanup-runs?limit=20` can display the most recent
-records without giving operators direct delete controls.
+records. The frontend cleanup controls run dry-run previews by default and ask
+for confirmation before sending a delete request.
 
 ## Local Smoke Test - 2026-07-08
 

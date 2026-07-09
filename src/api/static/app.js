@@ -30,6 +30,9 @@
   const refreshJobsButton = document.getElementById("refresh-jobs");
   const exportAuthorizationRecordButton = document.getElementById("export-authorization-record");
   const cleanupRunsList = document.getElementById("cleanup-runs-list");
+  const cleanupOlderThanDaysInput = document.getElementById("cleanup-older-than-days");
+  const cleanupDryRunButton = document.getElementById("cleanup-dry-run");
+  const cleanupDeleteButton = document.getElementById("cleanup-delete");
   const refreshCleanupRunsButton = document.getElementById("refresh-cleanup-runs");
   const sourceRules = {
     label: "Source image",
@@ -83,6 +86,8 @@
   authorizationReferenceFilter.addEventListener("change", loadJobs);
   refreshJobsButton.addEventListener("click", loadJobs);
   exportAuthorizationRecordButton.addEventListener("click", exportAuthorizationRecord);
+  cleanupDryRunButton.addEventListener("click", () => runCleanup(true));
+  cleanupDeleteButton.addEventListener("click", () => runCleanup(false));
   refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
   clearResultButton.addEventListener("click", clearCurrentJob);
 
@@ -238,6 +243,55 @@
       renderCleanupRuns(payload.records || []);
     } catch (error) {
       cleanupRunsList.textContent = error.message;
+    }
+  }
+
+  async function runCleanup(dryRun) {
+    const olderThanDays = Number(cleanupOlderThanDaysInput.value);
+    if (!Number.isInteger(olderThanDays) || olderThanDays < 1) {
+      cleanupRunsList.textContent = "Cleanup days must be at least 1.";
+      return;
+    }
+    if (!dryRun && !window.confirm("Delete old succeeded/failed job files and database rows?")) {
+      return;
+    }
+
+    try {
+      cleanupDryRunButton.disabled = true;
+      cleanupDeleteButton.disabled = true;
+      const response = await fetch("/api/cleanup-runs", {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          older_than_days: olderThanDays,
+          dry_run: dryRun,
+          confirm_delete: !dryRun,
+        }),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Cleanup request failed");
+      }
+      details.textContent = [
+        dryRun ? "Cleanup dry run" : "Cleanup completed",
+        ": matched ",
+        payload.matched_jobs,
+        ", deleted ",
+        payload.deleted_jobs,
+        ", freed ",
+        formatBytes(payload.removed_bytes),
+        ".",
+      ].join("");
+      await loadCleanupRuns();
+      await loadJobs();
+    } catch (error) {
+      details.textContent = error.message;
+    } finally {
+      cleanupDryRunButton.disabled = false;
+      cleanupDeleteButton.disabled = false;
     }
   }
 
