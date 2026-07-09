@@ -44,6 +44,7 @@ Protected endpoints:
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/result`
 - `GET /api/jobs/{job_id}/audit`
+- `GET /api/jobs/{job_id}/export`
 
 Public endpoint:
 
@@ -131,6 +132,16 @@ Returns the job timeline used for support and traceability. Events currently
 include `created`, `running`, `succeeded`, and `failed`. The `created` event
 records input hashes and the authorization policy version. Terminal events
 record the output hash or failure message.
+
+### Download Audit Export
+
+```http
+GET /api/jobs/{job_id}/export
+```
+
+Returns a downloadable JSON package with the job record, input/output hashes,
+authorization confirmation, policy version, and audit event timeline. The
+frontend exposes this as `Download audit JSON` after a job succeeds.
 
 ## Before Serving Users
 
@@ -268,6 +279,7 @@ Browser flow:
 - Confirmed the job appeared in Recent jobs.
 - Confirmed the generated result preview appeared.
 - Downloaded the result from the page.
+- Downloaded the audit JSON export from the page.
 
 Observed job:
 

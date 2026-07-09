@@ -3,12 +3,13 @@
 import shutil
 import secrets
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from queue import Queue
 from typing import Dict
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.utils.commercial_safety import assert_commercial_safe_environment
@@ -140,6 +141,33 @@ def create_app(
                 for event in events
             ],
         }
+
+    @app.get("/api/jobs/{job_id}/export")
+    def export_job_audit(job_id: str, _: None = Depends(require_api_key)) -> JSONResponse:
+        job = store.get_job(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        events = store.list_audit_events(job_id)
+        payload = {
+            "export_version": "liveportrait-audit-export-v1",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "job": _job_payload(job),
+            "audit_events": [
+                {
+                    "event_id": event.event_id,
+                    "event_type": event.event_type,
+                    "metadata": event.metadata,
+                    "created_at": event.created_at,
+                }
+                for event in events
+            ],
+        }
+        return JSONResponse(
+            payload,
+            headers={
+                "Content-Disposition": f'attachment; filename="liveportrait-audit-{job_id}.json"'
+            },
+        )
 
     return app
 

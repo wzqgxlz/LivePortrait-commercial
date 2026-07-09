@@ -132,6 +132,7 @@ This checks:
 - that job endpoints reject requests without `x-api-key`
 - that the recent job list rejects requests without `x-api-key`
 - that the audit endpoint rejects requests without `x-api-key`
+- that the audit export endpoint rejects requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 
 ## 6. Run A Real Smoke Job
@@ -152,6 +153,8 @@ finishes, and downloads the generated result. The script submits
 `consent_confirmed=true`, matching the frontend authorization checkbox.
 
 Successful jobs record `output_sha256` and audit events for later traceability.
+Use `GET /api/jobs/{job_id}/export` or the frontend `Download audit JSON`
+action to download the complete traceability package.
 
 ## 7. Run With systemd
 

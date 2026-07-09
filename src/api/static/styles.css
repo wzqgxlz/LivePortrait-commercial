@@ -205,8 +205,14 @@ button:disabled {
   display: block;
 }
 
-.download-link {
+.download-actions {
   margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.download-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -217,6 +223,14 @@ button:disabled {
 
 .download-link[hidden] {
   display: none;
+}
+
+.secondary-link {
+  background: #4f5f65;
+}
+
+.secondary-link:hover {
+  background: #334044;
 }
 
 .history-panel {

@@ -26,9 +26,11 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="driving"' in page_response.text
         assert 'id="consent_confirmed"' in page_response.text
         assert 'id="jobs-list"' in page_response.text
+        assert 'id="download-audit"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "loadJobs" in script_response.text
+        assert "loadAuditExport" in script_response.text
         assert style_response.status_code == 200
 
 
@@ -189,8 +191,10 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
 
         result_response = client.get(f"/api/jobs/{job_id}/result")
         list_response = client.get("/api/jobs")
+        export_response = client.get(f"/api/jobs/{job_id}/export")
         assert result_response.status_code == 401
         assert list_response.status_code == 401
+        assert export_response.status_code == 401
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):
@@ -222,6 +226,7 @@ def test_result_endpoint_returns_completed_output(tmp_path):
         response = client.get(f"/api/jobs/{job_id}/result")
         status_response = client.get(f"/api/jobs/{job_id}")
         audit_response = client.get(f"/api/jobs/{job_id}/audit")
+        export_response = client.get(f"/api/jobs/{job_id}/export")
 
         assert response.status_code == 200
         assert response.content == b"result"
@@ -229,6 +234,13 @@ def test_result_endpoint_returns_completed_output(tmp_path):
         assert status_response.json()["output_sha256"]
         assert audit_response.status_code == 200
         assert [event["event_type"] for event in audit_response.json()["events"]] == ["created", "succeeded"]
+        assert export_response.status_code == 200
+        assert "attachment" in export_response.headers["content-disposition"]
+        export_payload = export_response.json()
+        assert export_payload["export_version"] == "liveportrait-audit-export-v1"
+        assert export_payload["job"]["job_id"] == job_id
+        assert export_payload["job"]["output_sha256"]
+        assert [event["event_type"] for event in export_payload["audit_events"]] == ["created", "succeeded"]
 
 
 def test_inference_runner_builds_humans_only_command(tmp_path):

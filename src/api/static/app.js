@@ -6,10 +6,12 @@
   const details = document.getElementById("details");
   const preview = document.getElementById("preview");
   const downloadLink = document.getElementById("download");
+  const auditDownloadLink = document.getElementById("download-audit");
   const health = document.getElementById("health");
   const jobsList = document.getElementById("jobs-list");
   const refreshJobsButton = document.getElementById("refresh-jobs");
   let currentResultUrl = null;
+  let currentAuditUrl = null;
 
   apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
   apiKeyInput.addEventListener("change", () => {
@@ -63,6 +65,7 @@
 
     if (payload.status === "succeeded") {
       await loadResult(jobId);
+      await loadAuditExport(jobId);
       await loadJobs();
       submitButton.disabled = false;
       return;
@@ -95,6 +98,26 @@
     renderPreview(blob, currentResultUrl);
     downloadLink.href = currentResultUrl;
     downloadLink.hidden = false;
+  }
+
+  async function loadAuditExport(jobId) {
+    const response = await fetch("/api/jobs/" + encodeURIComponent(jobId) + "/export", {
+      headers: authHeaders(),
+    });
+    const payload = await readJson(response);
+    if (!response.ok) {
+      throw new Error(payload.detail || "Audit export failed");
+    }
+
+    if (currentAuditUrl) {
+      URL.revokeObjectURL(currentAuditUrl);
+    }
+    currentAuditUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    }));
+    auditDownloadLink.href = currentAuditUrl;
+    auditDownloadLink.download = "liveportrait-audit-" + jobId + ".json";
+    auditDownloadLink.hidden = false;
   }
 
   async function loadJobs() {
@@ -146,6 +169,7 @@
     resetResult();
     if (job.status === "succeeded") {
       await loadResult(job.job_id);
+      await loadAuditExport(job.job_id);
     }
   }
 
@@ -198,6 +222,12 @@
     preview.replaceChildren();
     downloadLink.hidden = true;
     downloadLink.removeAttribute("href");
+    auditDownloadLink.hidden = true;
+    auditDownloadLink.removeAttribute("href");
+    if (currentAuditUrl) {
+      URL.revokeObjectURL(currentAuditUrl);
+      currentAuditUrl = null;
+    }
   }
 
   function setStatus(value) {

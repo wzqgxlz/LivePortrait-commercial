@@ -49,6 +49,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     assert "/api/health" in script
     assert "/api/jobs?limit=1" in script
     assert "/audit" in script
+    assert "/export" in script
     assert "x-api-key" in script
     assert "Expected unauthorized response" in script
     assert "LivePortrait" in script
