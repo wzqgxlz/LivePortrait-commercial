@@ -69,6 +69,8 @@ curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
 
 The frontend page stores the API Key in the browser's local storage and sends it
 as `x-api-key` when creating jobs, polling status, and downloading results.
+It also shows selected file names and sizes, checks file type/size before
+submission, and displays queue-limit or upload-limit errors inline.
 
 ## Endpoints
 

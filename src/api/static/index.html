@@ -27,6 +27,7 @@
             <label class="upload-box">
               <span>Source image</span>
               <input id="source" name="source" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />
+              <span id="source-summary" class="file-summary">No file selected</span>
             </label>
 
             <label class="upload-box">
@@ -38,9 +39,11 @@
                 accept=".jpg,.jpeg,.png,.mp4,.pkl,image/jpeg,image/png,video/mp4"
                 required
               />
+              <span id="driving-summary" class="file-summary">No file selected</span>
             </label>
           </div>
           <div id="upload-limits" class="form-hint" aria-live="polite">Checking upload limits.</div>
+          <div id="form-errors" class="form-errors" role="alert" hidden></div>
 
           <label class="consent-box">
             <input id="consent_confirmed" name="consent_confirmed" type="checkbox" value="true" required />

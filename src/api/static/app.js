@@ -1,6 +1,9 @@
 (function () {
   const form = document.getElementById("job-form");
   const apiKeyInput = document.getElementById("api-key");
+  const sourceInput = document.getElementById("source");
+  const drivingInput = document.getElementById("driving");
+  const consentInput = document.getElementById("consent_confirmed");
   const submitButton = document.getElementById("submit");
   const statusText = document.getElementById("status");
   const details = document.getElementById("details");
@@ -9,10 +12,33 @@
   const auditDownloadLink = document.getElementById("download-audit");
   const health = document.getElementById("health");
   const uploadLimits = document.getElementById("upload-limits");
+  const formErrors = document.getElementById("form-errors");
+  const sourceSummary = document.getElementById("source-summary");
+  const drivingSummary = document.getElementById("driving-summary");
   const jobsList = document.getElementById("jobs-list");
   const refreshJobsButton = document.getElementById("refresh-jobs");
+  const sourceRules = {
+    label: "Source image",
+    extensions: [".jpg", ".jpeg", ".png"],
+    types: ["image/jpeg", "image/jpg", "image/png"],
+  };
+  const drivingRules = {
+    label: "Driving file",
+    extensions: [".jpg", ".jpeg", ".png", ".mp4", ".pkl"],
+    types: [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "video/mp4",
+      "application/octet-stream",
+      "application/pickle",
+      "application/x-pickle",
+      "",
+    ],
+  };
   let currentResultUrl = null;
   let currentAuditUrl = null;
+  let maxUploadBytes = null;
 
   apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
   apiKeyInput.addEventListener("change", () => {
@@ -22,15 +48,32 @@
   checkHealth();
   loadJobs();
   form.addEventListener("submit", createJob);
+  sourceInput.addEventListener("change", () => {
+    renderFileSummary(sourceInput, sourceSummary);
+    clearFormErrors();
+  });
+  drivingInput.addEventListener("change", () => {
+    renderFileSummary(drivingInput, drivingSummary);
+    clearFormErrors();
+  });
+  consentInput.addEventListener("change", clearFormErrors);
   refreshJobsButton.addEventListener("click", loadJobs);
 
   async function createJob(event) {
     event.preventDefault();
     resetResult();
-    submitButton.disabled = true;
-    setStatus("Uploading");
+    clearFormErrors();
+
+    const errors = validateJobForm();
+    if (errors.length) {
+      showFormErrors(errors);
+      setStatus("Needs attention");
+      return;
+    }
 
     try {
+      submitButton.disabled = true;
+      setStatus("Uploading");
       const body = new FormData(form);
       body.delete("api-key");
       const response = await fetch("/api/jobs", {
@@ -40,7 +83,7 @@
       });
       const payload = await readJson(response);
       if (!response.ok) {
-        throw new Error(payload.detail || "Upload failed");
+        throw new Error(friendlyError(response.status, payload.detail || "Upload failed"));
       }
       details.textContent = "Job " + payload.job_id;
       await loadJobs();
@@ -154,8 +197,12 @@
         escapeHtml(job.driving_filename || "driving"),
         "</span>",
         '<span class="job-meta">',
+        '<span class="status-chip" data-status="',
         escapeHtml(job.status),
-        " · ",
+        '">',
+        escapeHtml(job.status),
+        "</span>",
+        " ",
         escapeHtml(formatTime(job.updated_at)),
         "</span>",
       ].join("");
@@ -198,6 +245,7 @@
       health.textContent = response.ok ? "Online" : "Offline";
       health.dataset.state = response.ok ? "ok" : "bad";
       if (response.ok) {
+        maxUploadBytes = Number(payload.max_upload_bytes) || null;
         uploadLimits.textContent = "Max upload " + formatBytes(payload.max_upload_bytes) + " per file; queue limit " + payload.max_active_jobs + " active jobs.";
       }
     } catch (error) {
@@ -205,6 +253,75 @@
       health.dataset.state = "bad";
       uploadLimits.textContent = "Upload limits unavailable while the API is offline.";
     }
+  }
+
+  function validateJobForm() {
+    const errors = [];
+    errors.push(...validateSelectedFile(sourceInput, sourceRules));
+    errors.push(...validateSelectedFile(drivingInput, drivingRules));
+    if (!consentInput.checked) {
+      errors.push("Confirm source image authorization before generating.");
+    }
+    return errors;
+  }
+
+  function validateSelectedFile(input, rules) {
+    const file = input.files && input.files[0];
+    if (!file) {
+      return [rules.label + " is required."];
+    }
+
+    const suffix = "." + file.name.split(".").pop().toLowerCase();
+    const errors = [];
+    if (!rules.extensions.includes(suffix)) {
+      errors.push("Unsupported " + rules.label.toLowerCase() + " type: " + suffix + ".");
+    }
+
+    const fileType = (file.type || "").toLowerCase();
+    if (fileType && !rules.types.includes(fileType)) {
+      errors.push(rules.label + " content type is not supported: " + fileType + ".");
+    }
+
+    if (maxUploadBytes && file.size > maxUploadBytes) {
+      errors.push(rules.label + " is larger than " + formatBytes(maxUploadBytes) + ".");
+    }
+    return errors;
+  }
+
+  function renderFileSummary(input, target) {
+    const file = input.files && input.files[0];
+    if (!file) {
+      target.textContent = "No file selected";
+      return;
+    }
+    target.textContent = file.name + " - " + formatBytes(file.size);
+  }
+
+  function showFormErrors(errors) {
+    formErrors.hidden = false;
+    const list = document.createElement("ul");
+    for (const error of errors) {
+      const item = document.createElement("li");
+      item.textContent = error;
+      list.appendChild(item);
+    }
+    formErrors.replaceChildren(list);
+    details.textContent = errors[0];
+  }
+
+  function clearFormErrors() {
+    formErrors.hidden = true;
+    formErrors.replaceChildren();
+  }
+
+  function friendlyError(status, detail) {
+    if (status === 429) {
+      return "The job queue is full. Try again after existing jobs finish.";
+    }
+    if (status === 413) {
+      return "One of the files is larger than the upload limit.";
+    }
+    return detail;
   }
 
   function authHeaders() {
