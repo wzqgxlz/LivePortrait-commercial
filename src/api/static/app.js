@@ -7,6 +7,9 @@
   const submitButton = document.getElementById("submit");
   const statusText = document.getElementById("status");
   const details = document.getElementById("details");
+  const jobSummary = document.getElementById("job-summary");
+  const jobSummaryContent = document.getElementById("job-summary-content");
+  const clearResultButton = document.getElementById("clear-result");
   const preview = document.getElementById("preview");
   const downloadLink = document.getElementById("download");
   const auditDownloadLink = document.getElementById("download-audit");
@@ -58,6 +61,7 @@
   });
   consentInput.addEventListener("change", clearFormErrors);
   refreshJobsButton.addEventListener("click", loadJobs);
+  clearResultButton.addEventListener("click", clearCurrentJob);
 
   async function createJob(event) {
     event.preventDefault();
@@ -85,6 +89,7 @@
       if (!response.ok) {
         throw new Error(friendlyError(response.status, payload.detail || "Upload failed"));
       }
+      renderJobSummary(payload);
       details.textContent = "Job " + payload.job_id;
       await loadJobs();
       await pollJob(payload.job_id);
@@ -105,6 +110,7 @@
     }
 
     setStatus(payload.status);
+    renderJobSummary(payload);
     details.textContent = "Job " + payload.job_id + " updated at " + payload.updated_at;
 
     if (payload.status === "succeeded") {
@@ -141,6 +147,7 @@
     currentResultUrl = URL.createObjectURL(blob);
     renderPreview(blob, currentResultUrl);
     downloadLink.href = currentResultUrl;
+    downloadLink.download = "liveportrait-result-" + jobId;
     downloadLink.hidden = false;
   }
 
@@ -213,12 +220,55 @@
 
   async function selectJob(job) {
     setStatus(job.status);
-    details.textContent = "Job " + job.job_id + " updated at " + job.updated_at;
     resetResult();
+    renderJobSummary(job);
+    details.textContent = "Job " + job.job_id + " updated at " + job.updated_at;
+    if (job.status === "failed") {
+      details.textContent = job.error_message || "Generation failed";
+      return;
+    }
     if (job.status === "succeeded") {
       await loadResult(job.job_id);
       await loadAuditExport(job.job_id);
     }
+  }
+
+  function renderJobSummary(job) {
+    jobSummary.hidden = false;
+    jobSummaryContent.replaceChildren(
+      summaryRow("Status", job.status || "unknown"),
+      summaryRow("Job ID", job.job_id || "unknown"),
+      summaryRow("Files", (job.source_filename || "source") + " -> " + (job.driving_filename || "driving")),
+      summaryRow("Created", formatTime(job.created_at)),
+      summaryRow("Updated", formatTime(job.updated_at)),
+      summaryRow("Source SHA", shortHash(job.source_sha256)),
+      summaryRow("Driving SHA", shortHash(job.driving_sha256)),
+    );
+
+    if (job.output_sha256) {
+      jobSummaryContent.appendChild(summaryRow("Output SHA", shortHash(job.output_sha256)));
+    }
+    if (job.error_message) {
+      jobSummaryContent.appendChild(summaryRow("Failure", job.error_message));
+    }
+  }
+
+  function summaryRow(label, value) {
+    const fragment = document.createDocumentFragment();
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value || "Not available";
+    fragment.append(term, description);
+    return fragment;
+  }
+
+  function clearCurrentJob() {
+    resetResult();
+    jobSummary.hidden = true;
+    jobSummaryContent.replaceChildren();
+    setStatus("Ready");
+    details.textContent = "No job selected.";
   }
 
   function renderPreview(blob, url) {
@@ -387,6 +437,10 @@
       unitIndex += 1;
     }
     return (unitIndex === 0 ? size : size.toFixed(1)) + " " + units[unitIndex];
+  }
+
+  function shortHash(value) {
+    return value ? String(value).slice(0, 12) : "Not available";
   }
 
   function escapeHtml(value) {

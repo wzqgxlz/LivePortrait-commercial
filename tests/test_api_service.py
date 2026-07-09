@@ -31,17 +31,25 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="form-errors"' in page_response.text
         assert 'id="source-summary"' in page_response.text
         assert 'id="driving-summary"' in page_response.text
+        assert 'id="job-summary"' in page_response.text
+        assert 'id="job-summary-content"' in page_response.text
+        assert 'id="clear-result"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "validateJobForm" in script_response.text
         assert "validateSelectedFile" in script_response.text
         assert "renderFileSummary" in script_response.text
+        assert "renderJobSummary" in script_response.text
+        assert "clearCurrentJob" in script_response.text
+        assert "shortHash" in script_response.text
         assert "loadJobs" in script_response.text
         assert "loadAuditExport" in script_response.text
         assert "status-chip" in script_response.text
         assert "formatBytes" in script_response.text
         assert ".form-errors" in style_response.text
         assert ".file-summary" in style_response.text
+        assert ".job-summary" in style_response.text
+        assert ".summary-grid" in style_response.text
         assert ".status-chip" in style_response.text
         assert style_response.status_code == 200
 

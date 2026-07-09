@@ -61,6 +61,13 @@
         </div>
 
         <div id="details" class="details">No job submitted.</div>
+        <section id="job-summary" class="job-summary" aria-labelledby="job-summary-title" hidden>
+          <div class="summary-header">
+            <h3 id="job-summary-title">Job details</h3>
+            <button id="clear-result" class="secondary-button" type="button">Clear</button>
+          </div>
+          <dl id="job-summary-content" class="summary-grid"></dl>
+        </section>
         <div id="preview" class="preview" aria-live="polite"></div>
         <div class="download-actions">
           <a id="download" class="download-link" href="#" download hidden>Download result</a>
