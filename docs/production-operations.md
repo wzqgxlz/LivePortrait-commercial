@@ -178,6 +178,8 @@ Use this lightweight flow for MVP incidents.
   retention window.
 - Before public launch, have legal counsel review open-source license,
   portrait-right, privacy, and deepfake policy language.
+- Follow `docs/content-safety-authorization-workflow.md` for MVP authorization
+  records, content review, prohibited uses, and manual review.
 
 ## MVP Limitations
 

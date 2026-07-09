@@ -99,3 +99,15 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "scripts/smoke_api_job.py" in doc
     assert "output_sha256" in doc
     assert "Rollback" in doc
+
+
+def test_content_safety_authorization_workflow_covers_mvp_controls():
+    doc = Path("docs/content-safety-authorization-workflow.md").read_text(encoding="utf-8")
+
+    assert "Authorization Record" in doc
+    assert "Content Review" in doc
+    assert "Prohibited Uses" in doc
+    assert "Manual Review" in doc
+    assert "GET /api/jobs/{job_id}/export" in doc
+    assert "consent_confirmed" in doc
+    assert "Retention" in doc

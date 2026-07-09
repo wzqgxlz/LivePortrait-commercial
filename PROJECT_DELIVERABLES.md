@@ -113,6 +113,7 @@ wrapper:
 | GPU deployment guide | `docs/gpu-api-deployment.md` | GPU machine setup and deployment reference. |
 | Deployment acceptance checklist | `docs/deployment-acceptance-checklist.md` | Acceptance stages, evidence table, pass/fail criteria, smoke-job validation, cleanup evidence, and rollback steps. |
 | Production operations guide | `docs/production-operations.md` | Launch checklist, daily operations, support export, cleanup evidence, incident response, and MVP limitations. |
+| Content safety and authorization workflow | `docs/content-safety-authorization-workflow.md` | MVP workflow for authorization records, content review, prohibited uses, manual review, support export, and retention. |
 | Humans regression record | `docs/humans-mediapipe-regression-2026-07-08.md` | Recorded Humans mode MediaPipe regression notes. |
 | Commercial migration plan | `docs/superpowers/plans/2026-07-08-commercial-mediapipe-cropper.md` | Implementation plan used for the commercial-safe MediaPipe migration. |
 
@@ -142,7 +143,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-40 passed
+41 passed
 Commercial safety scan passed.
 ```
 
@@ -150,6 +151,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `ee44ca4` | `docs: add deployment acceptance checklist` |
 | `9886276` | `docs: add production operations guide` |
 | `31dc931` | `feat: add lightweight operations controls` |
 | `00b64f8` | `feat: refine frontend trial experience` |
@@ -187,6 +189,5 @@ directory.
 
 When implemented, add new entries for:
 
-- Content moderation and authorization-record workflow.
 - Billing/admin/backend artifacts, if built.
 - Any GPU regression report from a rented GPU machine.
