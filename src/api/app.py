@@ -16,7 +16,7 @@ from src.utils.commercial_safety import assert_commercial_safe_environment
 
 from .config import ApiConfig
 from .runner import InferenceRunner
-from .storage import DEFAULT_USAGE_POLICY_VERSION, JobRecord, JobStore, PENDING, SUCCEEDED
+from .storage import DEFAULT_USAGE_POLICY_VERSION, FAILED, PENDING, RUNNING, SUCCEEDED, JobRecord, JobStore
 
 
 SOURCE_CONTENT_TYPES = {
@@ -30,6 +30,7 @@ DRIVING_CONTENT_TYPES = {
     ".pkl": {"application/octet-stream", "application/pickle", "application/x-pickle"},
 }
 STATIC_DIR = Path(__file__).with_name("static")
+VALID_JOB_STATUSES = {PENDING, RUNNING, SUCCEEDED, FAILED}
 
 
 def create_app(
@@ -114,9 +115,16 @@ def create_app(
     @app.get("/api/jobs")
     def list_jobs(
         limit: int = Query(20, ge=1, le=100),
+        status: str | None = Query(default=None),
         _: None = Depends(require_api_key),
     ) -> Dict[str, object]:
-        return {"jobs": [_job_payload(job) for job in store.list_recent_jobs(limit=limit)]}
+        _validate_job_status(status)
+        return {
+            "jobs": [
+                _job_payload(job)
+                for job in store.list_recent_jobs(limit=limit, status=status)
+            ]
+        }
 
     @app.get("/api/jobs/{job_id}")
     def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
@@ -221,6 +229,13 @@ def _validate_capacity(store: JobStore, max_active_jobs: int) -> None:
             status_code=429,
             detail="job queue is full; retry after existing jobs finish",
         )
+
+
+def _validate_job_status(status: str | None) -> None:
+    if status is None:
+        return
+    if status not in VALID_JOB_STATUSES:
+        raise HTTPException(status_code=400, detail=f"unsupported job status filter: {status}")
 
 
 def _validate_consent(consent_confirmed: bool) -> None:

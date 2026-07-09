@@ -130,6 +130,15 @@ GET /api/jobs?limit=20
 Returns recent jobs in newest-first order. The frontend uses this endpoint to
 show the Recent jobs list.
 
+Optional filter:
+
+```http
+GET /api/jobs?limit=20&status=succeeded
+```
+
+Supported `status` values are `pending`, `running`, `succeeded`, and `failed`.
+The frontend exposes this as the Recent jobs status filter.
+
 ### Download Result
 
 ```http
@@ -158,6 +167,12 @@ GET /api/jobs/{job_id}/export
 Returns a downloadable JSON package with the job record, input/output hashes,
 authorization confirmation, policy version, and audit event timeline. The
 frontend exposes this as `Download audit JSON` after a job succeeds.
+
+For administrator support workflows, use:
+
+- `GET /api/jobs?status=failed` to find failed jobs.
+- `GET /api/jobs/{job_id}/export` to download a job traceability package.
+- `GET /api/jobs/{job_id}/audit` to inspect the raw timeline without download.
 
 ## Before Serving Users
 
@@ -192,6 +207,15 @@ python scripts\cleanup_api_jobs.py --older-than-days 7
 The cleanup only removes jobs whose status is `succeeded` or `failed` and whose
 `updated_at` timestamp is older than the retention window. Jobs that are still
 `pending` or `running` are skipped.
+
+Every cleanup run appends a JSON line to:
+
+```text
+<LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl
+```
+
+Each record includes the run timestamp, retention window, dry-run flag, matched
+job IDs, deleted job IDs, skipped active job count, and removed byte count.
 
 ## Local Smoke Test - 2026-07-08
 

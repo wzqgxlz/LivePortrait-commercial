@@ -22,6 +22,7 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "scripts/start_gpu_api_server.sh" in doc
     assert "scripts/check_api_deployment.py" in doc
     assert "scripts/cleanup_api_jobs.py --older-than-days 7" in doc
+    assert "cleanup-runs.jsonl" in doc
     assert "python scripts/download_humans_assets.py" in doc
 
 
@@ -67,3 +68,10 @@ def test_api_job_smoke_script_submits_polls_and_downloads_result():
     assert "succeeded" in script
     assert "--output" in script
     assert "x-api-key" in script
+
+
+def test_cleanup_script_records_cleanup_runs():
+    script = Path("scripts/cleanup_api_jobs.py").read_text(encoding="utf-8")
+
+    assert "cleanup-runs.jsonl" in script
+    assert "record=" in script

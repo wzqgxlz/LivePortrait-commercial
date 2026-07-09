@@ -36,13 +36,15 @@ def main() -> int:
         jobs_dir=config.jobs_dir,
         older_than_days=args.older_than_days,
         dry_run=args.dry_run,
+        cleanup_record_path=config.resolved_data_dir / "cleanup-runs.jsonl",
     )
     mode = "DRY RUN" if args.dry_run else "CLEANED"
     print(
         f"{mode}: matched={result.matched_jobs} "
         f"deleted={result.deleted_jobs} "
         f"skipped_active={result.skipped_active_jobs} "
-        f"removed_bytes={result.removed_bytes}"
+        f"removed_bytes={result.removed_bytes} "
+        f"record={result.cleanup_record_path}"
     )
     return 0
 

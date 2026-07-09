@@ -24,6 +24,7 @@
   const sourceSummary = document.getElementById("source-summary");
   const drivingSummary = document.getElementById("driving-summary");
   const jobsList = document.getElementById("jobs-list");
+  const jobStatusFilter = document.getElementById("job-status-filter");
   const refreshJobsButton = document.getElementById("refresh-jobs");
   const sourceRules = {
     label: "Source image",
@@ -69,6 +70,7 @@
     clearFormErrors();
   });
   consentInput.addEventListener("change", clearFormErrors);
+  jobStatusFilter.addEventListener("change", loadJobs);
   refreshJobsButton.addEventListener("click", loadJobs);
   clearResultButton.addEventListener("click", clearCurrentJob);
 
@@ -185,7 +187,9 @@
 
   async function loadJobs() {
     try {
-      const response = await fetch("/api/jobs?limit=10", {
+      const status = jobStatusFilter.value;
+      const url = "/api/jobs?limit=10" + (status ? "&status=" + encodeURIComponent(status) : "");
+      const response = await fetch(url, {
         headers: authHeaders(),
       });
       const payload = await readJson(response);
@@ -201,7 +205,7 @@
   function renderJobs(jobs) {
     jobsList.replaceChildren();
     if (!jobs.length) {
-      jobsList.textContent = "No recent jobs.";
+      jobsList.textContent = jobStatusFilter.value ? "No jobs match this status." : "No recent jobs.";
       return;
     }
 

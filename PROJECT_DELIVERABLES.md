@@ -35,6 +35,8 @@ wrapper:
 - Result download.
 - Audit timeline and audit JSON export.
 - Upload type/size limits and active queue limit.
+- Recent job status filtering for lightweight operations triage.
+- Cleanup run records for retention/deletion evidence.
 - GPU deployment and smoke-test scripts.
 
 ## Core Commercial-Safety Deliverables
@@ -57,7 +59,7 @@ wrapper:
 | API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, API Key, upload limit, and active job limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
 | SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, audit events, and output metadata. |
-| Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files. |
+| Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, and can append cleanup run records. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
 ## Frontend Deliverables
@@ -85,6 +87,7 @@ wrapper:
 - API Key guidance that tells users whether a key is saved locally.
 - First-use empty state in the result preview area.
 - Completion panel after a successful generation with download guidance.
+- Recent jobs status filter for `pending`, `running`, `succeeded`, and `failed`.
 
 ## Deployment And GPU Migration Deliverables
 
@@ -99,7 +102,7 @@ wrapper:
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
-| API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs from API storage. |
+| API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs from API storage and records each run in `cleanup-runs.jsonl`. |
 
 ## Documentation Deliverables
 
@@ -137,7 +140,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-35 passed
+38 passed
 Commercial safety scan passed.
 ```
 
@@ -145,6 +148,8 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `00b64f8` | `feat: refine frontend trial experience` |
+| `6b82ff8` | `docs: add project deliverables index` |
 | `69c8926` | `feat: add frontend job detail panel` |
 | `28ae147` | `feat: improve frontend upload feedback` |
 | `9157652` | `feat: add upload and queue safety limits` |
@@ -171,12 +176,13 @@ deliverables and should not be used as the source of truth:
 
 API-generated uploads, job database files, and result files usually live under
 `tmp/api` or the configured `LIVEPORTRAIT_API_DATA_DIR`.
+Cleanup run records live in `cleanup-runs.jsonl` under the same API data
+directory.
 
 ## Next Deliverables To Add Here
 
 When implemented, add new entries for:
 
-- Frontend authentication guidance and empty-state refinements.
 - Deployment acceptance checklist.
 - Production operations notes.
 - Content moderation and authorization-record workflow.

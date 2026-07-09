@@ -124,13 +124,19 @@ class JobStore:
             rows = conn.execute("SELECT * FROM jobs ORDER BY created_at ASC").fetchall()
         return [_row_to_job(row) for row in rows]
 
-    def list_recent_jobs(self, limit: int = 20) -> list[JobRecord]:
+    def list_recent_jobs(self, limit: int = 20, status: str | None = None) -> list[JobRecord]:
         safe_limit = max(1, min(limit, 100))
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
-                (safe_limit,),
-            ).fetchall()
+            if status is None:
+                rows = conn.execute(
+                    "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
+                    (safe_limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                    (status, safe_limit),
+                ).fetchall()
         return [_row_to_job(row) for row in rows]
 
     def count_active_jobs(self) -> int:

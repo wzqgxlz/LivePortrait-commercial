@@ -87,7 +87,19 @@
         <div class="history-panel" aria-labelledby="history-title">
           <div class="history-header">
             <h2 id="history-title">Recent jobs</h2>
-            <button id="refresh-jobs" class="secondary-button" type="button">Refresh</button>
+            <div class="history-tools">
+              <label class="compact-field">
+                <span>Status</span>
+                <select id="job-status-filter">
+                  <option value="">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="running">Running</option>
+                  <option value="succeeded">Succeeded</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </label>
+              <button id="refresh-jobs" class="secondary-button" type="button">Refresh</button>
+            </div>
           </div>
           <div id="jobs-list" class="jobs-list">No recent jobs.</div>
         </div>

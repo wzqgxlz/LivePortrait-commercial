@@ -37,6 +37,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="auth-hint"' in page_response.text
         assert 'id="empty-state"' in page_response.text
         assert 'id="completion-panel"' in page_response.text
+        assert 'id="job-status-filter"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "validateJobForm" in script_response.text
@@ -49,6 +50,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "updateAuthHint" in script_response.text
         assert "shortHash" in script_response.text
         assert "loadJobs" in script_response.text
+        assert "jobStatusFilter" in script_response.text
+        assert "status=" in script_response.text
         assert "loadAuditExport" in script_response.text
         assert "status-chip" in script_response.text
         assert "formatBytes" in script_response.text
@@ -154,6 +157,46 @@ def test_list_jobs_returns_recent_jobs(tmp_path):
         assert response.json()["jobs"][0]["job_id"] == second_response.json()["job_id"]
         assert response.json()["jobs"][0]["source_filename"] == "second-source.jpg"
         assert first_response.json()["job_id"] != second_response.json()["job_id"]
+
+
+def test_list_jobs_can_filter_by_status(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        pending_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("pending-source.jpg", b"pending-source", "image/jpeg"),
+                "driving": ("pending-driving.jpg", b"pending-driving", "image/jpeg"),
+            },
+        )
+        failed_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("failed-source.jpg", b"failed-source", "image/jpeg"),
+                "driving": ("failed-driving.jpg", b"failed-driving", "image/jpeg"),
+            },
+        )
+        app.state.job_store.mark_failed(failed_response.json()["job_id"], "operator test failure")
+
+        failed_jobs = client.get("/api/jobs?status=failed")
+        pending_jobs = client.get("/api/jobs?status=pending")
+        invalid_status = client.get("/api/jobs?status=missing")
+
+        assert failed_jobs.status_code == 200
+        assert [job["job_id"] for job in failed_jobs.json()["jobs"]] == [failed_response.json()["job_id"]]
+        assert pending_jobs.status_code == 200
+        assert [job["job_id"] for job in pending_jobs.json()["jobs"]] == [pending_response.json()["job_id"]]
+        assert invalid_status.status_code == 400
 
 
 def test_create_job_rejects_unsupported_source_type(tmp_path):

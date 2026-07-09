@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -58,6 +59,36 @@ def test_cleanup_finished_jobs_dry_run_keeps_files_and_rows(tmp_path):
     assert result.matched_jobs == 1
     assert store.get_job(job_id) is not None
     assert (jobs_dir / job_id).exists()
+
+
+def test_cleanup_finished_jobs_writes_cleanup_record(tmp_path):
+    from src.api.cleanup import cleanup_finished_jobs
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "api-data" / "jobs.sqlite3")
+    jobs_dir = tmp_path / "api-data" / "jobs"
+    record_path = tmp_path / "api-data" / "cleanup-runs.jsonl"
+    now = datetime(2026, 7, 8, tzinfo=timezone.utc)
+    job_id = _create_job(store, jobs_dir, "old-succeeded")
+    store.mark_succeeded(job_id, jobs_dir / job_id / "outputs" / "result.jpg")
+    _set_updated_at(store.db_path, job_id, now - timedelta(days=10))
+
+    result = cleanup_finished_jobs(
+        store,
+        jobs_dir,
+        older_than_days=7,
+        now=now,
+        cleanup_record_path=record_path,
+    )
+
+    payload = json.loads(record_path.read_text(encoding="utf-8").strip())
+    assert result.cleanup_record_path == record_path
+    assert payload["older_than_days"] == 7
+    assert payload["dry_run"] is False
+    assert payload["matched_job_ids"] == [job_id]
+    assert payload["deleted_job_ids"] == [job_id]
+    assert payload["deleted_jobs"] == 1
+    assert payload["removed_bytes"] > 0
 
 
 def _create_job(store, jobs_dir: Path, job_id: str) -> str:

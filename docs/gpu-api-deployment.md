@@ -199,6 +199,15 @@ python scripts/cleanup_api_jobs.py --older-than-days 7
 Only `succeeded` and `failed` jobs older than the retention window are removed.
 `pending` and `running` jobs are kept.
 
+Each cleanup run appends an operational record to:
+
+```text
+<LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl
+```
+
+Keep this file with the API data directory if you need retention and deletion
+evidence for customer support or internal audits.
+
 ## 9. Production Notes
 
 - Put the service behind HTTPS before public access.
@@ -207,3 +216,5 @@ Only `succeeded` and `failed` jobs older than the retention window are removed.
 - Use a process manager such as systemd, supervisor, or the cloud platform's
   service runner for long-running deployment.
 - Keep GPU concurrency low until real load testing confirms safe memory usage.
+- Use `GET /api/jobs?status=failed` for failure triage and
+  `GET /api/jobs/{job_id}/export` for per-job support exports.
