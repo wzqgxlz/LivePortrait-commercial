@@ -133,6 +133,12 @@ input[type="file"] {
   align-content: center;
 }
 
+.form-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .consent-box {
   display: grid;
   grid-template-columns: 18px 1fr;

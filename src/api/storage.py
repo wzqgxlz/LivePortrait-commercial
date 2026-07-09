@@ -133,6 +133,14 @@ class JobStore:
             ).fetchall()
         return [_row_to_job(row) for row in rows]
 
+    def count_active_jobs(self) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS total FROM jobs WHERE status IN (?, ?)",
+                (PENDING, RUNNING),
+            ).fetchone()
+        return int(row["total"])
+
     def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
         placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
         with self._connect() as conn:

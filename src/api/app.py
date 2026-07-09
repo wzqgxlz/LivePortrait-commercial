@@ -19,8 +19,16 @@ from .runner import InferenceRunner
 from .storage import DEFAULT_USAGE_POLICY_VERSION, JobRecord, JobStore, PENDING, SUCCEEDED
 
 
-SOURCE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
-DRIVING_EXTENSIONS = {".jpg", ".jpeg", ".png", ".mp4", ".pkl"}
+SOURCE_CONTENT_TYPES = {
+    ".jpg": {"image/jpeg", "image/jpg"},
+    ".jpeg": {"image/jpeg", "image/jpg"},
+    ".png": {"image/png"},
+}
+DRIVING_CONTENT_TYPES = {
+    **SOURCE_CONTENT_TYPES,
+    ".mp4": {"video/mp4"},
+    ".pkl": {"application/octet-stream", "application/pickle", "application/x-pickle"},
+}
 STATIC_DIR = Path(__file__).with_name("static")
 
 
@@ -60,8 +68,12 @@ def create_app(
         return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/api/health")
-    def health() -> Dict[str, str]:
-        return {"status": "ok"}
+    def health() -> Dict[str, object]:
+        return {
+            "status": "ok",
+            "max_upload_bytes": cfg.max_upload_bytes,
+            "max_active_jobs": cfg.max_active_jobs,
+        }
 
     @app.post("/api/jobs", status_code=201)
     def create_job(
@@ -71,8 +83,9 @@ def create_app(
         _: None = Depends(require_api_key),
     ) -> Dict[str, object]:
         _validate_consent(consent_confirmed)
-        _validate_upload(source, SOURCE_EXTENSIONS, "source", cfg.max_upload_bytes)
-        _validate_upload(driving, DRIVING_EXTENSIONS, "driving", cfg.max_upload_bytes)
+        _validate_upload(source, SOURCE_CONTENT_TYPES, "source")
+        _validate_upload(driving, DRIVING_CONTENT_TYPES, "driving")
+        _validate_capacity(store, cfg.max_active_jobs)
 
         job_id = _new_job_id_hint()
         job_dir = cfg.jobs_dir / job_id
@@ -181,12 +194,32 @@ def _worker_loop(queue: Queue[str], store: JobStore, runner: InferenceRunner) ->
             queue.task_done()
 
 
-def _validate_upload(upload: UploadFile, allowed_extensions: set[str], field_name: str, max_upload_bytes: int) -> None:
+def _validate_upload(
+    upload: UploadFile,
+    allowed_content_types: dict[str, set[str]],
+    field_name: str,
+) -> None:
     suffix = Path(upload.filename or "").suffix.lower()
-    if suffix not in allowed_extensions:
+    if suffix not in allowed_content_types:
         raise HTTPException(
             status_code=400,
             detail=f"{field_name} file type is not supported: {suffix or '(none)'}",
+        )
+    content_type = _normalized_content_type(upload.content_type)
+    if content_type not in allowed_content_types[suffix]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} content type is not supported: {content_type}",
+        )
+
+
+def _validate_capacity(store: JobStore, max_active_jobs: int) -> None:
+    if max_active_jobs <= 0:
+        return
+    if store.count_active_jobs() >= max_active_jobs:
+        raise HTTPException(
+            status_code=429,
+            detail="job queue is full; retry after existing jobs finish",
         )
 
 
@@ -196,6 +229,11 @@ def _validate_consent(consent_confirmed: bool) -> None:
             status_code=400,
             detail="source image authorization must be confirmed before creating a job",
         )
+
+
+def _normalized_content_type(content_type: str | None) -> str:
+    value = (content_type or "application/octet-stream").split(";", 1)[0].strip().lower()
+    return value or "application/octet-stream"
 
 
 def _save_upload(upload: UploadFile, destination: Path, max_upload_bytes: int) -> None:

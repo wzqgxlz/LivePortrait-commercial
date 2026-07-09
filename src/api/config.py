@@ -12,6 +12,7 @@ class ApiConfig:
     data_dir: Path = Path("tmp") / "api"
     python_executable: str = sys.executable
     max_upload_bytes: int = 200 * 1024 * 1024
+    max_active_jobs: int = 20
     force_cpu: bool = False
     api_key: str | None = None
 
@@ -25,6 +26,7 @@ class ApiConfig:
             data_dir=Path(os.environ.get("LIVEPORTRAIT_API_DATA_DIR", root / "tmp" / "api")),
             python_executable=os.environ.get("LIVEPORTRAIT_API_PYTHON", sys.executable),
             max_upload_bytes=int(os.environ.get("LIVEPORTRAIT_API_MAX_UPLOAD_BYTES", 200 * 1024 * 1024)),
+            max_active_jobs=int(os.environ.get("LIVEPORTRAIT_API_MAX_ACTIVE_JOBS", 20)),
             force_cpu=force_cpu,
             api_key=api_key,
         )

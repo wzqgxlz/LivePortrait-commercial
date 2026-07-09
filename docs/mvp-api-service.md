@@ -26,6 +26,8 @@ $env:LIVEPORTRAIT_API_DATA_DIR = "tmp/api"
 $env:LIVEPORTRAIT_API_PYTHON = ".\LivePortrait_env\Scripts\python.exe"
 $env:LIVEPORTRAIT_API_FORCE_CPU = "0"
 $env:LIVEPORTRAIT_API_KEY = "replace-with-a-long-random-secret"
+$env:LIVEPORTRAIT_API_MAX_UPLOAD_BYTES = "209715200"
+$env:LIVEPORTRAIT_API_MAX_ACTIVE_JOBS = "20"
 ```
 
 Set `LIVEPORTRAIT_API_FORCE_CPU=1` only for local smoke tests without an NVIDIA
@@ -34,6 +36,11 @@ GPU.
 Set `LIVEPORTRAIT_API_KEY` before exposing the service to any network. When it
 is unset, the API stays open for local development and smoke tests. When it is
 set, every job endpoint requires the same value in the `x-api-key` header.
+
+`LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` limits each uploaded file. The default is
+209,715,200 bytes, about 200 MB. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` limits the
+number of `pending` plus `running` jobs. The default is 20; when the queue is
+full, `POST /api/jobs` returns `429`.
 
 ## Authentication
 
@@ -75,6 +82,9 @@ Multipart files:
 
 - `source`: `.jpg`, `.jpeg`, `.png`
 - `driving`: `.jpg`, `.jpeg`, `.png`, `.mp4`, `.pkl`
+
+Uploads are checked by extension and content type. Source files must be JPEG or
+PNG. Driving files can be JPEG, PNG, MP4, or PKL.
 
 Required form field:
 

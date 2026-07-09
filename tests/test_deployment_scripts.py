@@ -32,6 +32,8 @@ def test_deployment_env_template_contains_safe_defaults():
     assert "LIVEPORTRAIT_API_HOST=0.0.0.0" in template
     assert "LIVEPORTRAIT_API_FORCE_CPU=0" in template
     assert "LIVEPORTRAIT_API_DATA_DIR=tmp/api" in template
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS=20" in template
+    assert "LIVEPORTRAIT_API_MAX_UPLOAD_BYTES=209715200" in template
 
 
 def test_systemd_template_points_to_start_script_and_env_file():

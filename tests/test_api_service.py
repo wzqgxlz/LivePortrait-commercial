@@ -27,10 +27,12 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="consent_confirmed"' in page_response.text
         assert 'id="jobs-list"' in page_response.text
         assert 'id="download-audit"' in page_response.text
+        assert 'id="upload-limits"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "loadJobs" in script_response.text
         assert "loadAuditExport" in script_response.text
+        assert "formatBytes" in script_response.text
         assert style_response.status_code == 200
 
 
@@ -149,6 +151,64 @@ def test_create_job_rejects_unsupported_source_type(tmp_path):
 
         assert response.status_code == 400
         assert "source" in response.json()["detail"]
+
+
+def test_create_job_rejects_mismatched_source_content_type(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"not-an-image", "text/plain"),
+                "driving": ("driving.jpg", b"ok", "image/jpeg"),
+            },
+        )
+
+        assert response.status_code == 400
+        assert "source" in response.json()["detail"]
+        assert "content type" in response.json()["detail"]
+
+
+def test_create_job_rejects_when_active_queue_is_full(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data", max_active_jobs=1),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        first_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("first-source.jpg", b"first-source", "image/jpeg"),
+                "driving": ("first-driving.jpg", b"first-driving", "image/jpeg"),
+            },
+        )
+        second_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("second-source.jpg", b"second-source", "image/jpeg"),
+                "driving": ("second-driving.jpg", b"second-driving", "image/jpeg"),
+            },
+        )
+
+        assert first_response.status_code == 201
+        assert second_response.status_code == 429
+        assert "queue" in second_response.json()["detail"]
 
 
 def test_api_key_protects_job_endpoints_when_configured(tmp_path):

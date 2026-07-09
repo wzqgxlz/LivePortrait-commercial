@@ -8,6 +8,7 @@
   const downloadLink = document.getElementById("download");
   const auditDownloadLink = document.getElementById("download-audit");
   const health = document.getElementById("health");
+  const uploadLimits = document.getElementById("upload-limits");
   const jobsList = document.getElementById("jobs-list");
   const refreshJobsButton = document.getElementById("refresh-jobs");
   let currentResultUrl = null;
@@ -193,11 +194,16 @@
   async function checkHealth() {
     try {
       const response = await fetch("/api/health");
+      const payload = await readJson(response);
       health.textContent = response.ok ? "Online" : "Offline";
       health.dataset.state = response.ok ? "ok" : "bad";
+      if (response.ok) {
+        uploadLimits.textContent = "Max upload " + formatBytes(payload.max_upload_bytes) + " per file; queue limit " + payload.max_active_jobs + " active jobs.";
+      }
     } catch (error) {
       health.textContent = "Offline";
       health.dataset.state = "bad";
+      uploadLimits.textContent = "Upload limits unavailable while the API is offline.";
     }
   }
 
@@ -249,6 +255,21 @@
       return value;
     }
     return date.toLocaleString();
+  }
+
+  function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "unknown";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    return (unitIndex === 0 ? size : size.toFixed(1)) + " " + units[unitIndex];
   }
 
   function escapeHtml(value) {

@@ -90,6 +90,8 @@ export LIVEPORTRAIT_API_PORT="8000"
 export LIVEPORTRAIT_API_DATA_DIR="tmp/api"
 export LIVEPORTRAIT_API_PYTHON="python"
 export LIVEPORTRAIT_API_FORCE_CPU="0"
+export LIVEPORTRAIT_API_MAX_UPLOAD_BYTES="209715200"
+export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS="20"
 ```
 
 You can also start from the template:
@@ -114,6 +116,11 @@ The same service exposes:
 
 The frontend stores the API Key in browser local storage and sends it as
 `x-api-key` for job creation, status polling, and result download.
+
+Keep `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` conservative until the GPU has passed
+load testing. It counts jobs that are still `pending` or `running` and rejects
+new uploads with `429` when the queue is full. The default upload limit is
+200 MB per file.
 
 ## 5. Check Deployment
 
