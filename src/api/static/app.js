@@ -29,6 +29,8 @@
   const authorizationReferenceFilter = document.getElementById("authorization-reference-filter");
   const refreshJobsButton = document.getElementById("refresh-jobs");
   const exportAuthorizationRecordButton = document.getElementById("export-authorization-record");
+  const cleanupRunsList = document.getElementById("cleanup-runs-list");
+  const refreshCleanupRunsButton = document.getElementById("refresh-cleanup-runs");
   const sourceRules = {
     label: "Source image",
     extensions: [".jpg", ".jpeg", ".png"],
@@ -59,11 +61,13 @@
     localStorage.setItem("liveportrait_api_key", apiKeyInput.value.trim());
     updateAuthHint();
     loadJobs();
+    loadCleanupRuns();
   });
 
   renderEmptyState();
   checkHealth();
   loadJobs();
+  loadCleanupRuns();
   form.addEventListener("submit", createJob);
   sourceInput.addEventListener("change", () => {
     renderFileSummary(sourceInput, sourceSummary);
@@ -79,6 +83,7 @@
   authorizationReferenceFilter.addEventListener("change", loadJobs);
   refreshJobsButton.addEventListener("click", loadJobs);
   exportAuthorizationRecordButton.addEventListener("click", exportAuthorizationRecord);
+  refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
   clearResultButton.addEventListener("click", clearCurrentJob);
 
   async function createJob(event) {
@@ -218,6 +223,51 @@
       renderJobs(payload.jobs || []);
     } catch (error) {
       jobsList.textContent = error.message;
+    }
+  }
+
+  async function loadCleanupRuns() {
+    try {
+      const response = await fetch("/api/cleanup-runs?limit=5", {
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Could not load cleanup records");
+      }
+      renderCleanupRuns(payload.records || []);
+    } catch (error) {
+      cleanupRunsList.textContent = error.message;
+    }
+  }
+
+  function renderCleanupRuns(records) {
+    cleanupRunsList.replaceChildren();
+    if (!records.length) {
+      cleanupRunsList.textContent = "No cleanup records.";
+      return;
+    }
+
+    for (const record of records) {
+      const item = document.createElement("div");
+      item.className = "cleanup-row";
+      item.innerHTML = [
+        '<span class="job-main">',
+        escapeHtml(formatTime(record.created_at)),
+        record.dry_run ? " - dry run" : " - cleaned",
+        "</span>",
+        '<span class="job-meta">',
+        "matched ",
+        escapeHtml(record.matched_jobs || 0),
+        ", deleted ",
+        escapeHtml(record.deleted_jobs || 0),
+        ", active skipped ",
+        escapeHtml(record.skipped_active_jobs || 0),
+        ", freed ",
+        escapeHtml(formatBytes(record.removed_bytes || 0)),
+        "</span>",
+      ].join("");
+      cleanupRunsList.appendChild(item);
     }
   }
 

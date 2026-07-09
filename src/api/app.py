@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.utils.commercial_safety import assert_commercial_safe_environment
 
+from .cleanup import list_cleanup_records
 from .config import ApiConfig
 from .runner import InferenceRunner
 from .storage import (
@@ -84,6 +85,17 @@ def create_app(
             "status": "ok",
             "max_upload_bytes": cfg.max_upload_bytes,
             "max_active_jobs": cfg.max_active_jobs,
+        }
+
+    @app.get("/api/cleanup-runs")
+    def get_cleanup_runs(
+        limit: int = Query(20, ge=1, le=100),
+        _: None = Depends(require_api_key),
+    ) -> Dict[str, object]:
+        record_path = cfg.resolved_data_dir / "cleanup-runs.jsonl"
+        return {
+            "cleanup_record_path": str(record_path),
+            "records": list_cleanup_records(record_path, limit=limit),
         }
 
     @app.post("/api/jobs", status_code=201)

@@ -52,6 +52,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     assert "/api/health" in script
     assert "/api/jobs?limit=1" in script
     assert "/api/authorization-records/export" in script
+    assert "/api/cleanup-runs?limit=1" in script
     assert "/audit" in script
     assert "/export" in script
     assert "x-api-key" in script
@@ -88,6 +89,7 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "GET /api/jobs?status=failed" in doc
     assert "GET /api/jobs?authorization_reference=CRM-2026-0001" in doc
     assert "GET /api/authorization-records/export?authorization_reference=CRM-2026-0001" in doc
+    assert "GET /api/cleanup-runs?limit=20" in doc
     assert "GET /api/jobs/{job_id}/export" in doc
     assert "Incident Response" in doc
 

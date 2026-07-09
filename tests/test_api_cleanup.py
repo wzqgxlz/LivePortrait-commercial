@@ -91,6 +91,43 @@ def test_cleanup_finished_jobs_writes_cleanup_record(tmp_path):
     assert payload["removed_bytes"] > 0
 
 
+def test_list_cleanup_records_returns_recent_valid_records(tmp_path):
+    from src.api.cleanup import list_cleanup_records
+
+    record_path = tmp_path / "api-data" / "cleanup-runs.jsonl"
+    record_path.parent.mkdir(parents=True)
+    first = {
+        "created_at": "2026-07-08T01:00:00+00:00",
+        "older_than_days": 7,
+        "dry_run": True,
+        "matched_jobs": 2,
+        "deleted_jobs": 0,
+        "skipped_active_jobs": 1,
+        "removed_bytes": 512,
+        "matched_job_ids": ["first", "second"],
+        "deleted_job_ids": [],
+    }
+    second = {
+        "created_at": "2026-07-09T01:00:00+00:00",
+        "older_than_days": 14,
+        "dry_run": False,
+        "matched_jobs": 1,
+        "deleted_jobs": 1,
+        "skipped_active_jobs": 0,
+        "removed_bytes": 1024,
+        "matched_job_ids": ["third"],
+        "deleted_job_ids": ["third"],
+    }
+    record_path.write_text(
+        json.dumps(first) + "\nnot-json\n" + json.dumps(second) + "\n",
+        encoding="utf-8",
+    )
+
+    records = list_cleanup_records(record_path, limit=1)
+
+    assert records == [second]
+
+
 def _create_job(store, jobs_dir: Path, job_id: str) -> str:
     job_dir = jobs_dir / job_id
     upload_dir = job_dir / "uploads"

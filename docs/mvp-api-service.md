@@ -53,6 +53,7 @@ Protected endpoints:
 - `GET /api/jobs/{job_id}/audit`
 - `GET /api/jobs/{job_id}/export`
 - `GET /api/authorization-records/export`
+- `GET /api/cleanup-runs`
 
 Public endpoint:
 
@@ -77,8 +78,9 @@ and failure messages. Recent jobs can be selected again to reload the result and
 audit export. Operators can filter recent jobs by job status, authorization
 status, and authorization reference, then export a JSON package for all recent
 jobs attached to one authorization reference. The page also includes API Key
-guidance, an empty state for first-time users, and a completion panel after
-successful generation.
+guidance, an empty state for first-time users, a completion panel after
+successful generation, and a read-only Cleanup runs panel for recent retention
+activity.
 
 ## Endpoints
 
@@ -214,6 +216,18 @@ operator export for B-side pilots and support cases; it does not replace the
 full external authorization record described in
 `docs/content-safety-authorization-workflow.md`.
 
+### List Cleanup Runs
+
+```http
+GET /api/cleanup-runs?limit=20
+```
+
+Returns recent records from `<LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl` in
+newest-first order. Each record includes the cleanup timestamp, retention
+window, dry-run flag, matched/deleted/skipped counts, removed bytes, and matched
+or deleted job IDs. This endpoint is read-only and is protected by the API Key
+when `LIVEPORTRAIT_API_KEY` is set.
+
 ## Before Serving Users
 
 Run these checks on the deployment machine:
@@ -256,6 +270,8 @@ Every cleanup run appends a JSON line to:
 
 Each record includes the run timestamp, retention window, dry-run flag, matched
 job IDs, deleted job IDs, skipped active job count, and removed byte count.
+The frontend and `GET /api/cleanup-runs?limit=20` can display the most recent
+records without giving operators direct delete controls.
 
 ## Local Smoke Test - 2026-07-08
 

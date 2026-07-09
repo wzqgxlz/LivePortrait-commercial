@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -41,6 +42,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="authorization-reference-filter"' in page_response.text
         assert 'id="authorization-status-filter"' in page_response.text
         assert 'id="export-authorization-record"' in page_response.text
+        assert 'id="cleanup-runs-list"' in page_response.text
+        assert 'id="refresh-cleanup-runs"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
         assert 'id="authorization-reviewer"' in page_response.text
@@ -62,6 +65,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "jobStatusFilter" in script_response.text
         assert "authorizationReferenceFilter" in script_response.text
         assert "exportAuthorizationRecord" in script_response.text
+        assert "loadCleanupRuns" in script_response.text
+        assert "renderCleanupRuns" in script_response.text
         assert "status=" in script_response.text
         assert "authorization_reference=" in script_response.text
         assert "loadAuditExport" in script_response.text
@@ -75,6 +80,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert ".empty-state" in style_response.text
         assert ".completion-panel" in style_response.text
         assert ".status-chip" in style_response.text
+        assert ".cleanup-runs-list" in style_response.text
         assert style_response.status_code == 200
 
 
@@ -385,6 +391,61 @@ def test_export_authorization_record_returns_matching_jobs_and_audits(tmp_path):
         assert missing_response.status_code == 404
 
 
+def test_cleanup_runs_endpoint_returns_recent_records(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    data_dir = tmp_path / "api-data"
+    record_path = data_dir / "cleanup-runs.jsonl"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "created_at": "2026-07-08T01:00:00+00:00",
+                        "older_than_days": 7,
+                        "dry_run": True,
+                        "matched_jobs": 2,
+                        "deleted_jobs": 0,
+                        "skipped_active_jobs": 1,
+                        "removed_bytes": 512,
+                        "matched_job_ids": ["first", "second"],
+                        "deleted_job_ids": [],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "created_at": "2026-07-09T01:00:00+00:00",
+                        "older_than_days": 14,
+                        "dry_run": False,
+                        "matched_jobs": 1,
+                        "deleted_jobs": 1,
+                        "skipped_active_jobs": 0,
+                        "removed_bytes": 1024,
+                        "matched_job_ids": ["third"],
+                        "deleted_job_ids": ["third"],
+                    }
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=data_dir),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/cleanup-runs?limit=1")
+
+    assert response.status_code == 200
+    assert response.json()["cleanup_record_path"] == str(record_path)
+    assert len(response.json()["records"]) == 1
+    assert response.json()["records"][0]["deleted_job_ids"] == ["third"]
+
+
 def test_create_job_rejects_unsupported_source_type(tmp_path):
     from src.api.app import create_app
     from src.api.config import ApiConfig
@@ -511,10 +572,12 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         authorization_export_response = client.get(
             "/api/authorization-records/export?authorization_reference=CRM-2026-0001"
         )
+        cleanup_runs_response = client.get("/api/cleanup-runs")
         assert result_response.status_code == 401
         assert list_response.status_code == 401
         assert export_response.status_code == 401
         assert authorization_export_response.status_code == 401
+        assert cleanup_runs_response.status_code == 401
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

@@ -418,7 +418,8 @@ button:disabled {
   background: #eef2ed;
 }
 
-.jobs-list {
+.jobs-list,
+.cleanup-runs-list {
   display: grid;
   gap: 8px;
   min-height: 36px;
@@ -426,7 +427,8 @@ button:disabled {
   font-size: 14px;
 }
 
-.job-row {
+.job-row,
+.cleanup-row {
   width: 100%;
   min-height: 48px;
   padding: 10px 12px;

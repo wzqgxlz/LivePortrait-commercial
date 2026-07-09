@@ -117,6 +117,12 @@ Each run appends one JSON line to:
 <LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl
 ```
 
+Review recent cleanup records through the API or frontend:
+
+```http
+GET /api/cleanup-runs?limit=20
+```
+
 Keep `cleanup-runs.jsonl` with the API data directory. It is the lightweight
 retention/deletion evidence for this MVP.
 

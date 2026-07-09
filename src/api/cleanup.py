@@ -74,6 +74,23 @@ def cleanup_finished_jobs(
     return result
 
 
+def list_cleanup_records(record_path: Path, limit: int = 20) -> list[dict]:
+    if not record_path.exists():
+        return []
+    safe_limit = max(1, min(limit, 100))
+    records = []
+    with record_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                records.append(json.loads(stripped))
+            except json.JSONDecodeError:
+                continue
+    return list(reversed(records[-safe_limit:]))
+
+
 def _job_directory(job: JobRecord) -> Path | None:
     if job.output_dir.name == "outputs":
         return job.output_dir.parent
