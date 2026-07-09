@@ -34,6 +34,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="job-summary"' in page_response.text
         assert 'id="job-summary-content"' in page_response.text
         assert 'id="clear-result"' in page_response.text
+        assert 'id="auth-hint"' in page_response.text
+        assert 'id="empty-state"' in page_response.text
+        assert 'id="completion-panel"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "validateJobForm" in script_response.text
@@ -41,6 +44,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "renderFileSummary" in script_response.text
         assert "renderJobSummary" in script_response.text
         assert "clearCurrentJob" in script_response.text
+        assert "renderEmptyState" in script_response.text
+        assert "renderCompletion" in script_response.text
+        assert "updateAuthHint" in script_response.text
         assert "shortHash" in script_response.text
         assert "loadJobs" in script_response.text
         assert "loadAuditExport" in script_response.text
@@ -50,6 +56,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert ".file-summary" in style_response.text
         assert ".job-summary" in style_response.text
         assert ".summary-grid" in style_response.text
+        assert ".auth-hint" in style_response.text
+        assert ".empty-state" in style_response.text
+        assert ".completion-panel" in style_response.text
         assert ".status-chip" in style_response.text
         assert style_response.status_code == 200
 

@@ -10,10 +10,15 @@
   const jobSummary = document.getElementById("job-summary");
   const jobSummaryContent = document.getElementById("job-summary-content");
   const clearResultButton = document.getElementById("clear-result");
+  const completionPanel = document.getElementById("completion-panel");
+  const completionTitle = document.getElementById("completion-title");
+  const completionMessage = document.getElementById("completion-message");
   const preview = document.getElementById("preview");
+  const emptyState = document.getElementById("empty-state");
   const downloadLink = document.getElementById("download");
   const auditDownloadLink = document.getElementById("download-audit");
   const health = document.getElementById("health");
+  const authHint = document.getElementById("auth-hint");
   const uploadLimits = document.getElementById("upload-limits");
   const formErrors = document.getElementById("form-errors");
   const sourceSummary = document.getElementById("source-summary");
@@ -44,10 +49,14 @@
   let maxUploadBytes = null;
 
   apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
+  updateAuthHint();
   apiKeyInput.addEventListener("change", () => {
     localStorage.setItem("liveportrait_api_key", apiKeyInput.value.trim());
+    updateAuthHint();
+    loadJobs();
   });
 
+  renderEmptyState();
   checkHealth();
   loadJobs();
   form.addEventListener("submit", createJob);
@@ -66,6 +75,7 @@
   async function createJob(event) {
     event.preventDefault();
     resetResult();
+    completionPanel.hidden = true;
     clearFormErrors();
 
     const errors = validateJobForm();
@@ -116,12 +126,14 @@
     if (payload.status === "succeeded") {
       await loadResult(jobId);
       await loadAuditExport(jobId);
+      renderCompletion(payload);
       await loadJobs();
       submitButton.disabled = false;
       return;
     }
 
     if (payload.status === "failed") {
+      completionPanel.hidden = true;
       details.textContent = payload.error_message || "Generation failed";
       await loadJobs();
       submitButton.disabled = false;
@@ -224,13 +236,25 @@
     renderJobSummary(job);
     details.textContent = "Job " + job.job_id + " updated at " + job.updated_at;
     if (job.status === "failed") {
+      completionPanel.hidden = true;
       details.textContent = job.error_message || "Generation failed";
       return;
     }
     if (job.status === "succeeded") {
       await loadResult(job.job_id);
       await loadAuditExport(job.job_id);
+      renderCompletion(job);
     }
+  }
+
+  function updateAuthHint() {
+    if (apiKeyInput.value.trim()) {
+      authHint.textContent = "API Key saved in this browser and sent with job requests.";
+      authHint.dataset.state = "ready";
+      return;
+    }
+    authHint.textContent = "Local testing may not require a key. Deployed services usually do.";
+    authHint.dataset.state = "neutral";
   }
 
   function renderJobSummary(job) {
@@ -267,6 +291,7 @@
     resetResult();
     jobSummary.hidden = true;
     jobSummaryContent.replaceChildren();
+    completionPanel.hidden = true;
     setStatus("Ready");
     details.textContent = "No job selected.";
   }
@@ -286,6 +311,17 @@
     image.src = url;
     image.alt = "Generated result";
     preview.appendChild(image);
+  }
+
+  function renderEmptyState() {
+    preview.replaceChildren(emptyState);
+    emptyState.hidden = false;
+  }
+
+  function renderCompletion(job) {
+    completionPanel.hidden = false;
+    completionTitle.textContent = "Result ready";
+    completionMessage.textContent = "Job " + shortHash(job.job_id) + " finished. Download the result or audit JSON below.";
   }
 
   async function checkHealth() {
@@ -393,6 +429,7 @@
       currentResultUrl = null;
     }
     preview.replaceChildren();
+    renderEmptyState();
     downloadLink.hidden = true;
     downloadLink.removeAttribute("href");
     auditDownloadLink.hidden = true;

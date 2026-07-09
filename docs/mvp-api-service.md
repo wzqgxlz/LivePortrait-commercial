@@ -72,7 +72,9 @@ as `x-api-key` when creating jobs, polling status, and downloading results.
 It also shows selected file names and sizes, checks file type/size before
 submission, displays queue-limit or upload-limit errors inline, and shows a
 job details panel with timestamps, input/output hashes, and failure messages.
-Recent jobs can be selected again to reload the result and audit export.
+Recent jobs can be selected again to reload the result and audit export. The
+page also includes API Key guidance, an empty state for first-time users, and a
+completion panel after successful generation.
 
 ## Endpoints
 

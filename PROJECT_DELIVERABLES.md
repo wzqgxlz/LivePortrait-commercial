@@ -82,6 +82,9 @@ wrapper:
 - Recent jobs list.
 - Job detail panel with status, Job ID, filenames, timestamps, input hashes, output hash, and failure reason.
 - Clear button for the current selected job.
+- API Key guidance that tells users whether a key is saved locally.
+- First-use empty state in the result preview area.
+- Completion panel after a successful generation with download guidance.
 
 ## Deployment And GPU Migration Deliverables
 

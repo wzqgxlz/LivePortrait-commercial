@@ -21,6 +21,7 @@
           <label class="field">
             <span>API Key</span>
             <input id="api-key" type="password" autocomplete="off" placeholder="Optional for local testing" />
+            <span id="auth-hint" class="auth-hint">Local testing may not require a key. Deployed services usually do.</span>
           </label>
 
           <div class="upload-grid">
@@ -61,6 +62,10 @@
         </div>
 
         <div id="details" class="details">No job submitted.</div>
+        <section id="completion-panel" class="completion-panel" aria-live="polite" hidden>
+          <strong id="completion-title">Result ready</strong>
+          <span id="completion-message">Download the generated result or audit package below.</span>
+        </section>
         <section id="job-summary" class="job-summary" aria-labelledby="job-summary-title" hidden>
           <div class="summary-header">
             <h3 id="job-summary-title">Job details</h3>
@@ -68,7 +73,12 @@
           </div>
           <dl id="job-summary-content" class="summary-grid"></dl>
         </section>
-        <div id="preview" class="preview" aria-live="polite"></div>
+        <div id="preview" class="preview" aria-live="polite">
+          <div id="empty-state" class="empty-state">
+            <strong>Ready for a new generation</strong>
+            <span>Select a source image and a driving file, confirm authorization, then generate.</span>
+          </div>
+        </div>
         <div class="download-actions">
           <a id="download" class="download-link" href="#" download hidden>Download result</a>
           <a id="download-audit" class="download-link secondary-link" href="#" download hidden>Download audit JSON</a>
