@@ -87,3 +87,15 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "GET /api/jobs?status=failed" in doc
     assert "GET /api/jobs/{job_id}/export" in doc
     assert "Incident Response" in doc
+
+
+def test_deployment_acceptance_checklist_covers_evidence_and_failures():
+    doc = Path("docs/deployment-acceptance-checklist.md").read_text(encoding="utf-8")
+
+    assert "Acceptance Stages" in doc
+    assert "Evidence To Record" in doc
+    assert "Pass/Fail Criteria" in doc
+    assert "scripts/check_api_deployment.py" in doc
+    assert "scripts/smoke_api_job.py" in doc
+    assert "output_sha256" in doc
+    assert "Rollback" in doc

@@ -163,6 +163,9 @@ Successful jobs record `output_sha256` and audit events for later traceability.
 Use `GET /api/jobs/{job_id}/export` or the frontend `Download audit JSON`
 action to download the complete traceability package.
 
+For a formal handoff, complete `docs/deployment-acceptance-checklist.md` and
+record the smoke job ID, result path, and `output_sha256`.
+
 ## 7. Run With systemd
 
 Install the service template after you have copied the repository to
