@@ -17,21 +17,26 @@ The current API and frontend already enforce these baseline controls:
 - Users must submit `consent_confirmed=true` before a job is created.
 - The job record stores `consent_confirmed`.
 - The job record stores `usage_policy_version`.
+- The job record can store lightweight authorization metadata:
+  `authorization_basis`, `authorization_reference`, `authorization_reviewer`,
+  and `authorization_status`.
 - Input files are hashed as `source_sha256` and `driving_sha256`.
 - Successful output is hashed as `output_sha256`.
 - Audit events record `created`, `running`, `succeeded`, and `failed`.
 - `GET /api/jobs/{job_id}/export` downloads the job support package.
-- The frontend shows authorization language before submission.
+- The frontend shows authorization language and optional authorization record
+  fields before submission.
 
 These controls are enough for internal MVP trials and B-side pilots when paired
-with a manual authorization record outside the API.
+with a fuller manual authorization record outside the API.
 
 ## Authorization Record
 
 For every external tester, customer, or B-side pilot, keep an authorization
-record before processing real people. The MVP can store this record outside the
-API at first, such as in a customer ticket, CRM, contract folder, or secure
-shared drive.
+record before processing real people. The MVP stores lightweight authorization
+metadata on each API job, but the fuller record can still live outside the API
+at first, such as in a customer ticket, CRM, contract folder, or secure shared
+drive.
 
 Minimum authorization record fields:
 
@@ -51,8 +56,9 @@ Minimum authorization record fields:
 | Notes | Optional |
 
 Do not rely only on a checkbox for commercial customer use. The checkbox is the
-in-product confirmation; the external authorization record is the support and
-compliance evidence.
+in-product confirmation; the API authorization metadata helps connect a job to
+the external authorization record, and the external record remains the support
+and compliance evidence.
 
 ## Content Review
 
@@ -140,6 +146,10 @@ GET /api/jobs/{job_id}/export
 
 - `consent_confirmed`
 - `usage_policy_version`
+- `authorization_basis`
+- `authorization_reference`
+- `authorization_reviewer`
+- `authorization_status`
 - `source_sha256`
 - `driving_sha256`
 - `output_sha256`
@@ -168,7 +178,7 @@ Adjust retention periods with legal counsel before public launch.
 
 The MVP still needs a stronger productized workflow before open public access:
 
-- First-class authorization-record API/table.
+- First-class authorization-record API/table with customer/user ownership.
 - Per-user or per-customer accounts.
 - Role-based access for operators and reviewers.
 - Upload support for authorization documents.

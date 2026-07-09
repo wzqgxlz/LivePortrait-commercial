@@ -16,7 +16,16 @@ from src.utils.commercial_safety import assert_commercial_safe_environment
 
 from .config import ApiConfig
 from .runner import InferenceRunner
-from .storage import DEFAULT_USAGE_POLICY_VERSION, FAILED, PENDING, RUNNING, SUCCEEDED, JobRecord, JobStore
+from .storage import (
+    DEFAULT_AUTHORIZATION_STATUS,
+    DEFAULT_USAGE_POLICY_VERSION,
+    FAILED,
+    PENDING,
+    RUNNING,
+    SUCCEEDED,
+    JobRecord,
+    JobStore,
+)
 
 
 SOURCE_CONTENT_TYPES = {
@@ -31,6 +40,7 @@ DRIVING_CONTENT_TYPES = {
 }
 STATIC_DIR = Path(__file__).with_name("static")
 VALID_JOB_STATUSES = {PENDING, RUNNING, SUCCEEDED, FAILED}
+VALID_AUTHORIZATION_STATUSES = {"self_confirmed", "approved", "needs_review"}
 
 
 def create_app(
@@ -81,9 +91,17 @@ def create_app(
         source: UploadFile = File(...),
         driving: UploadFile = File(...),
         consent_confirmed: bool = Form(False),
+        authorization_basis: str | None = Form(None),
+        authorization_reference: str | None = Form(None),
+        authorization_reviewer: str | None = Form(None),
+        authorization_status: str = Form(DEFAULT_AUTHORIZATION_STATUS),
         _: None = Depends(require_api_key),
     ) -> Dict[str, object]:
         _validate_consent(consent_confirmed)
+        authorization_status = _validate_authorization_status(authorization_status)
+        authorization_basis = _clean_optional_form_value(authorization_basis)
+        authorization_reference = _clean_optional_form_value(authorization_reference)
+        authorization_reviewer = _clean_optional_form_value(authorization_reviewer)
         _validate_upload(source, SOURCE_CONTENT_TYPES, "source")
         _validate_upload(driving, DRIVING_CONTENT_TYPES, "driving")
         _validate_capacity(store, cfg.max_active_jobs)
@@ -107,6 +125,10 @@ def create_app(
             job_id=job_id,
             consent_confirmed=consent_confirmed,
             usage_policy_version=DEFAULT_USAGE_POLICY_VERSION,
+            authorization_basis=authorization_basis,
+            authorization_reference=authorization_reference,
+            authorization_reviewer=authorization_reviewer,
+            authorization_status=authorization_status,
         )
         if enqueue_jobs:
             queue.put(job.job_id)
@@ -246,6 +268,20 @@ def _validate_consent(consent_confirmed: bool) -> None:
         )
 
 
+def _validate_authorization_status(status: str) -> str:
+    value = (status or DEFAULT_AUTHORIZATION_STATUS).strip().lower()
+    if value not in VALID_AUTHORIZATION_STATUSES:
+        raise HTTPException(status_code=400, detail=f"unsupported authorization status: {status}")
+    return value
+
+
+def _clean_optional_form_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def _normalized_content_type(content_type: str | None) -> str:
     value = (content_type or "application/octet-stream").split(";", 1)[0].strip().lower()
     return value or "application/octet-stream"
@@ -276,6 +312,10 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
         "output_sha256": job.output_sha256,
         "consent_confirmed": job.consent_confirmed,
         "usage_policy_version": job.usage_policy_version,
+        "authorization_basis": job.authorization_basis,
+        "authorization_reference": job.authorization_reference,
+        "authorization_reviewer": job.authorization_reviewer,
+        "authorization_status": job.authorization_status,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }

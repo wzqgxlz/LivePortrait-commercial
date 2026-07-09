@@ -31,6 +31,8 @@ wrapper:
 - Minimal browser upload frontend.
 - API Key protection.
 - Source image authorization confirmation.
+- Lightweight authorization metadata capture for basis, reference, reviewer,
+  and review status.
 - Job queue/status tracking.
 - Result download.
 - Audit timeline and audit JSON export.
@@ -58,7 +60,7 @@ wrapper:
 | FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, export, and health checks. |
 | API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, API Key, upload limit, and active job limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
-| SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, audit events, and output metadata. |
+| SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, lightweight authorization metadata, audit events, and output metadata. |
 | Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, and can append cleanup run records. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
@@ -66,9 +68,9 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, consent confirmation, job status, result preview, recent jobs, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, and job detail rendering. |
-| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, inline errors, job status chips, result preview, and job detail styling. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, and authorization-aware job detail rendering. |
+| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, and job detail styling. |
 
 ## Frontend Features Delivered
 
@@ -76,13 +78,16 @@ wrapper:
 - Driving upload: `.jpg`, `.jpeg`, `.png`, `.mp4`, `.pkl`.
 - API Key stored in browser local storage.
 - Source authorization checkbox before submission.
+- Optional authorization metadata fields for basis, reference, reviewer, and
+  review status.
 - Client-side file type and file size validation.
 - Inline form errors for missing files, unsupported types, oversized files, and missing consent.
 - Job submission and status polling.
 - Result preview and result download.
 - Audit JSON download after success.
 - Recent jobs list.
-- Job detail panel with status, Job ID, filenames, timestamps, input hashes, output hash, and failure reason.
+- Job detail panel with status, Job ID, filenames, authorization metadata,
+  timestamps, input hashes, output hash, and failure reason.
 - Clear button for the current selected job.
 - API Key guidance that tells users whether a key is saved locally.
 - First-use empty state in the result preview area.
@@ -143,7 +148,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-41 passed
+44 passed
 Commercial safety scan passed.
 ```
 
@@ -151,6 +156,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `eddf8e8` | `docs: add content safety authorization workflow` |
 | `ee44ca4` | `docs: add deployment acceptance checklist` |
 | `9886276` | `docs: add production operations guide` |
 | `31dc931` | `feat: add lightweight operations controls` |

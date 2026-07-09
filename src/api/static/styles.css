@@ -102,6 +102,7 @@ p,
 }
 
 input[type="password"],
+input[type="text"],
 input[type="file"],
 select {
   width: 100%;
@@ -112,7 +113,8 @@ select {
   font: inherit;
 }
 
-input[type="password"] {
+input[type="password"],
+input[type="text"] {
   min-height: 42px;
   padding: 0 12px;
 }
@@ -130,6 +132,12 @@ input[type="file"] {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+}
+
+.authorization-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .upload-box {
@@ -488,5 +496,9 @@ button:disabled {
 
   .preview {
     min-height: 260px;
+  }
+
+  .authorization-grid {
+    grid-template-columns: 1fr;
   }
 }

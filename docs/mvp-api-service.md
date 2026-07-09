@@ -71,10 +71,10 @@ The frontend page stores the API Key in the browser's local storage and sends it
 as `x-api-key` when creating jobs, polling status, and downloading results.
 It also shows selected file names and sizes, checks file type/size before
 submission, displays queue-limit or upload-limit errors inline, and shows a
-job details panel with timestamps, input/output hashes, and failure messages.
-Recent jobs can be selected again to reload the result and audit export. The
-page also includes API Key guidance, an empty state for first-time users, and a
-completion panel after successful generation.
+job details panel with authorization metadata, timestamps, input/output hashes,
+and failure messages. Recent jobs can be selected again to reload the result and
+audit export. The page also includes API Key guidance, an empty state for
+first-time users, and a completion panel after successful generation.
 
 ## Endpoints
 
@@ -97,6 +97,15 @@ Required form field:
 - `consent_confirmed=true`: confirms the user has permission to use the source
   image and accepts the usage restrictions.
 
+Optional authorization metadata:
+
+- `authorization_basis`: reviewed basis such as `customer_contract`,
+  `employment_agreement`, `customer_owned_asset`, `internal_test`, or `other`.
+- `authorization_reference`: ticket, CRM, contract, asset ID, or other support
+  reference.
+- `authorization_reviewer`: reviewer name or internal operator ID.
+- `authorization_status`: `self_confirmed`, `approved`, or `needs_review`.
+
 Response:
 
 ```json
@@ -104,7 +113,8 @@ Response:
   "job_id": "<job_id>",
   "status": "pending",
   "source_filename": "source.jpg",
-  "driving_filename": "driving.mp4"
+  "driving_filename": "driving.mp4",
+  "authorization_status": "self_confirmed"
 }
 ```
 
@@ -155,8 +165,8 @@ GET /api/jobs/{job_id}/audit
 
 Returns the job timeline used for support and traceability. Events currently
 include `created`, `running`, `succeeded`, and `failed`. The `created` event
-records input hashes and the authorization policy version. Terminal events
-record the output hash or failure message.
+records input hashes, authorization metadata, and the authorization policy
+version. Terminal events record the output hash or failure message.
 
 ### Download Audit Export
 
@@ -165,8 +175,9 @@ GET /api/jobs/{job_id}/export
 ```
 
 Returns a downloadable JSON package with the job record, input/output hashes,
-authorization confirmation, policy version, and audit event timeline. The
-frontend exposes this as `Download audit JSON` after a job succeeds.
+authorization confirmation, authorization metadata, policy version, and audit
+event timeline. The frontend exposes this as `Download audit JSON` after a job
+succeeds.
 
 For administrator support workflows, use:
 

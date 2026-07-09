@@ -46,6 +46,52 @@
           <div id="upload-limits" class="form-hint" aria-live="polite">Checking upload limits.</div>
           <div id="form-errors" class="form-errors" role="alert" hidden></div>
 
+          <div class="authorization-grid" aria-label="Authorization record">
+            <label class="field">
+              <span>Authorization basis</span>
+              <select id="authorization-basis" name="authorization_basis">
+                <option value="">Not specified</option>
+                <option value="self_confirmed">Self confirmed</option>
+                <option value="customer_contract">Customer contract</option>
+                <option value="employment_agreement">Employment agreement</option>
+                <option value="customer_owned_asset">Customer-owned asset</option>
+                <option value="internal_test">Internal test</option>
+                <option value="other">Other reviewed basis</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Authorization reference</span>
+              <input
+                id="authorization-reference"
+                name="authorization_reference"
+                type="text"
+                autocomplete="off"
+                placeholder="Ticket, CRM, contract, or asset ID"
+              />
+            </label>
+
+            <label class="field">
+              <span>Reviewer</span>
+              <input
+                id="authorization-reviewer"
+                name="authorization_reviewer"
+                type="text"
+                autocomplete="off"
+                placeholder="Optional reviewer name or ID"
+              />
+            </label>
+
+            <label class="field">
+              <span>Review status</span>
+              <select id="authorization-status" name="authorization_status">
+                <option value="self_confirmed">Self confirmed</option>
+                <option value="approved">Approved</option>
+                <option value="needs_review">Needs review</option>
+              </select>
+            </label>
+          </div>
+
           <label class="consent-box">
             <input id="consent_confirmed" name="consent_confirmed" type="checkbox" value="true" required />
             <span>I confirm I have permission to use this person's image and will not use the result for impersonation, fraud, explicit content, or political deepfakes.</span>

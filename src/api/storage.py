@@ -16,6 +16,7 @@ SUCCEEDED = "succeeded"
 FAILED = "failed"
 TERMINAL_STATUSES = (SUCCEEDED, FAILED)
 DEFAULT_USAGE_POLICY_VERSION = "human-image-authorization-v1"
+DEFAULT_AUTHORIZATION_STATUS = "self_confirmed"
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,10 @@ class JobRecord:
     output_sha256: Optional[str]
     consent_confirmed: bool
     usage_policy_version: str
+    authorization_basis: Optional[str]
+    authorization_reference: Optional[str]
+    authorization_reviewer: Optional[str]
+    authorization_status: str
     created_at: str
     updated_at: str
 
@@ -63,6 +68,10 @@ class JobStore:
         job_id: str | None = None,
         consent_confirmed: bool = False,
         usage_policy_version: str = DEFAULT_USAGE_POLICY_VERSION,
+        authorization_basis: str | None = None,
+        authorization_reference: str | None = None,
+        authorization_reviewer: str | None = None,
+        authorization_status: str = DEFAULT_AUTHORIZATION_STATUS,
     ) -> JobRecord:
         now = _now()
         job_id = job_id or uuid.uuid4().hex
@@ -75,9 +84,10 @@ class JobStore:
                     job_id, status, source_filename, driving_filename, source_path,
                     driving_path, output_dir, result_path, error_message,
                     source_sha256, driving_sha256, output_sha256, consent_confirmed,
-                    usage_policy_version, created_at, updated_at
+                    usage_policy_version, authorization_basis, authorization_reference,
+                    authorization_reviewer, authorization_status, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -94,6 +104,10 @@ class JobStore:
                     None,
                     1 if consent_confirmed else 0,
                     usage_policy_version,
+                    authorization_basis,
+                    authorization_reference,
+                    authorization_reviewer,
+                    authorization_status,
                     now,
                     now,
                 ),
@@ -109,6 +123,10 @@ class JobStore:
                     "driving_sha256": driving_sha256,
                     "consent_confirmed": consent_confirmed,
                     "usage_policy_version": usage_policy_version,
+                    "authorization_basis": authorization_basis,
+                    "authorization_reference": authorization_reference,
+                    "authorization_reviewer": authorization_reviewer,
+                    "authorization_status": authorization_status,
                 },
                 now,
             )
@@ -218,6 +236,10 @@ class JobStore:
                     output_sha256 TEXT,
                     consent_confirmed INTEGER NOT NULL DEFAULT 0,
                     usage_policy_version TEXT NOT NULL DEFAULT 'legacy',
+                    authorization_basis TEXT,
+                    authorization_reference TEXT,
+                    authorization_reviewer TEXT,
+                    authorization_status TEXT NOT NULL DEFAULT 'self_confirmed',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -238,6 +260,15 @@ class JobStore:
             _ensure_column(conn, "jobs", "output_sha256", "TEXT")
             _ensure_column(conn, "jobs", "consent_confirmed", "INTEGER NOT NULL DEFAULT 0")
             _ensure_column(conn, "jobs", "usage_policy_version", "TEXT NOT NULL DEFAULT 'legacy'")
+            _ensure_column(conn, "jobs", "authorization_basis", "TEXT")
+            _ensure_column(conn, "jobs", "authorization_reference", "TEXT")
+            _ensure_column(conn, "jobs", "authorization_reviewer", "TEXT")
+            _ensure_column(
+                conn,
+                "jobs",
+                "authorization_status",
+                "TEXT NOT NULL DEFAULT 'self_confirmed'",
+            )
 
     def _insert_audit_event(
         self,
@@ -285,6 +316,10 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
         output_sha256=row["output_sha256"],
         consent_confirmed=bool(row["consent_confirmed"]),
         usage_policy_version=row["usage_policy_version"],
+        authorization_basis=row["authorization_basis"],
+        authorization_reference=row["authorization_reference"],
+        authorization_reviewer=row["authorization_reviewer"],
+        authorization_status=row["authorization_status"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

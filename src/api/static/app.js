@@ -271,6 +271,10 @@
       summaryRow("Updated", formatTime(job.updated_at)),
       summaryRow("Source SHA", shortHash(job.source_sha256)),
       summaryRow("Driving SHA", shortHash(job.driving_sha256)),
+      summaryRow("Auth basis", job.authorization_basis || "Not specified"),
+      summaryRow("Auth ref", job.authorization_reference || "Not specified"),
+      summaryRow("Reviewer", job.authorization_reviewer || "Not specified"),
+      summaryRow("Review", job.authorization_status || "self_confirmed"),
     );
 
     if (job.output_sha256) {

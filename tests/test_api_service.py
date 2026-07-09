@@ -38,12 +38,18 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="empty-state"' in page_response.text
         assert 'id="completion-panel"' in page_response.text
         assert 'id="job-status-filter"' in page_response.text
+        assert 'id="authorization-basis"' in page_response.text
+        assert 'id="authorization-reference"' in page_response.text
+        assert 'id="authorization-reviewer"' in page_response.text
+        assert 'id="authorization-status"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
         assert "validateJobForm" in script_response.text
         assert "validateSelectedFile" in script_response.text
         assert "renderFileSummary" in script_response.text
         assert "renderJobSummary" in script_response.text
+        assert "authorization_basis" in script_response.text
+        assert "authorization_reference" in script_response.text
         assert "clearCurrentJob" in script_response.text
         assert "renderEmptyState" in script_response.text
         assert "renderCompletion" in script_response.text
@@ -98,6 +104,79 @@ def test_create_job_saves_uploads_and_returns_pending_status(tmp_path):
         assert status_response.status_code == 200
         assert status_response.json()["source_filename"] == "source.jpg"
         assert status_response.json()["consent_confirmed"] is True
+
+
+def test_create_job_records_authorization_metadata_in_payload_audit_and_export(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_basis": "customer_contract",
+                "authorization_reference": "CRM-2026-0001",
+                "authorization_reviewer": "ops-reviewer",
+                "authorization_status": "approved",
+            },
+            files={
+                "source": ("source.jpg", b"source-bytes", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving-bytes", "image/jpeg"),
+            },
+        )
+
+        assert create_response.status_code == 201
+        job_id = create_response.json()["job_id"]
+        assert create_response.json()["authorization_basis"] == "customer_contract"
+        assert create_response.json()["authorization_reference"] == "CRM-2026-0001"
+        assert create_response.json()["authorization_reviewer"] == "ops-reviewer"
+        assert create_response.json()["authorization_status"] == "approved"
+
+        audit_response = client.get(f"/api/jobs/{job_id}/audit")
+        export_response = client.get(f"/api/jobs/{job_id}/export")
+
+        assert audit_response.status_code == 200
+        created_metadata = audit_response.json()["events"][0]["metadata"]
+        assert created_metadata["authorization_basis"] == "customer_contract"
+        assert created_metadata["authorization_reference"] == "CRM-2026-0001"
+        assert created_metadata["authorization_reviewer"] == "ops-reviewer"
+        assert created_metadata["authorization_status"] == "approved"
+        assert export_response.status_code == 200
+        assert export_response.json()["job"]["authorization_reference"] == "CRM-2026-0001"
+
+
+def test_create_job_rejects_invalid_authorization_status(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_status": "rejected",
+            },
+            files={
+                "source": ("source.jpg", b"source-bytes", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving-bytes", "image/jpeg"),
+            },
+        )
+
+        assert response.status_code == 400
+        assert "authorization status" in response.json()["detail"]
 
 
 def test_create_job_requires_usage_consent(tmp_path):
