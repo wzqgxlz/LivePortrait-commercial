@@ -26,6 +26,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _check_health(base_url),
         _check_frontend(base_url),
         _check_auth_guard(base_url),
+        _check_job_list_auth_guard(base_url),
         _check_audit_auth_guard(base_url),
     ]
     if args.api_key:
@@ -66,6 +67,13 @@ def _check_auth_guard(base_url: str) -> tuple[bool, str]:
     if result.status == 401:
         return True, "Expected unauthorized response without x-api-key."
     return False, f"Expected unauthorized response without x-api-key, got HTTP {result.status}."
+
+
+def _check_job_list_auth_guard(base_url: str) -> tuple[bool, str]:
+    result = _get(f"{base_url}/api/jobs?limit=1")
+    if result.status == 401:
+        return True, "Job list endpoint rejects requests without x-api-key."
+    return False, f"Job list endpoint should reject requests without x-api-key, got HTTP {result.status}."
 
 
 def _check_audit_auth_guard(base_url: str) -> tuple[bool, str]:

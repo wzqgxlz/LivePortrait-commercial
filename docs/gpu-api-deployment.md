@@ -130,6 +130,7 @@ This checks:
 - `GET /api/health`
 - the frontend HTML page
 - that job endpoints reject requests without `x-api-key`
+- that the recent job list rejects requests without `x-api-key`
 - that the audit endpoint rejects requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 

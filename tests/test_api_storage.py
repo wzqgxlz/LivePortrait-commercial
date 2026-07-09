@@ -95,3 +95,28 @@ def test_job_store_records_failed_audit_event(tmp_path):
 
     assert [event.event_type for event in events] == ["created", "failed"]
     assert events[-1].metadata["error_message"] == "boom"
+
+
+def test_job_store_lists_recent_jobs_newest_first(tmp_path):
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    created_ids = []
+    for index in range(3):
+        source_path = tmp_path / f"source-{index}.jpg"
+        driving_path = tmp_path / f"driving-{index}.jpg"
+        source_path.write_bytes(f"source-{index}".encode("utf-8"))
+        driving_path.write_bytes(f"driving-{index}".encode("utf-8"))
+        job = store.create_job(
+            source_filename=source_path.name,
+            driving_filename=driving_path.name,
+            source_path=source_path,
+            driving_path=driving_path,
+            output_dir=tmp_path / f"outputs-{index}",
+            consent_confirmed=True,
+        )
+        created_ids.append(job.job_id)
+
+    recent = store.list_recent_jobs(limit=2)
+
+    assert [job.job_id for job in recent] == [created_ids[2], created_ids[1]]

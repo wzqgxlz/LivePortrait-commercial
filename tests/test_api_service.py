@@ -25,8 +25,10 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="source"' in page_response.text
         assert 'id="driving"' in page_response.text
         assert 'id="consent_confirmed"' in page_response.text
+        assert 'id="jobs-list"' in page_response.text
         assert script_response.status_code == 200
         assert "createJob" in script_response.text
+        assert "loadJobs" in script_response.text
         assert style_response.status_code == 200
 
 
@@ -85,6 +87,42 @@ def test_create_job_requires_usage_consent(tmp_path):
 
         assert response.status_code == 400
         assert "authorization" in response.json()["detail"]
+
+
+def test_list_jobs_returns_recent_jobs(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        first_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("first-source.jpg", b"first-source", "image/jpeg"),
+                "driving": ("first-driving.jpg", b"first-driving", "image/jpeg"),
+            },
+        )
+        second_response = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("second-source.jpg", b"second-source", "image/jpeg"),
+                "driving": ("second-driving.jpg", b"second-driving", "image/jpeg"),
+            },
+        )
+
+        response = client.get("/api/jobs?limit=1")
+
+        assert response.status_code == 200
+        assert response.json()["jobs"][0]["job_id"] == second_response.json()["job_id"]
+        assert response.json()["jobs"][0]["source_filename"] == "second-source.jpg"
+        assert first_response.json()["job_id"] != second_response.json()["job_id"]
 
 
 def test_create_job_rejects_unsupported_source_type(tmp_path):
@@ -150,7 +188,9 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         assert authed_status_response.status_code == 200
 
         result_response = client.get(f"/api/jobs/{job_id}/result")
+        list_response = client.get("/api/jobs")
         assert result_response.status_code == 401
+        assert list_response.status_code == 401
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

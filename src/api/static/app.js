@@ -7,6 +7,8 @@
   const preview = document.getElementById("preview");
   const downloadLink = document.getElementById("download");
   const health = document.getElementById("health");
+  const jobsList = document.getElementById("jobs-list");
+  const refreshJobsButton = document.getElementById("refresh-jobs");
   let currentResultUrl = null;
 
   apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
@@ -15,7 +17,9 @@
   });
 
   checkHealth();
+  loadJobs();
   form.addEventListener("submit", createJob);
+  refreshJobsButton.addEventListener("click", loadJobs);
 
   async function createJob(event) {
     event.preventDefault();
@@ -36,6 +40,7 @@
         throw new Error(payload.detail || "Upload failed");
       }
       details.textContent = "Job " + payload.job_id;
+      await loadJobs();
       await pollJob(payload.job_id);
     } catch (error) {
       setStatus("Failed");
@@ -58,12 +63,14 @@
 
     if (payload.status === "succeeded") {
       await loadResult(jobId);
+      await loadJobs();
       submitButton.disabled = false;
       return;
     }
 
     if (payload.status === "failed") {
       details.textContent = payload.error_message || "Generation failed";
+      await loadJobs();
       submitButton.disabled = false;
       return;
     }
@@ -88,6 +95,58 @@
     renderPreview(blob, currentResultUrl);
     downloadLink.href = currentResultUrl;
     downloadLink.hidden = false;
+  }
+
+  async function loadJobs() {
+    try {
+      const response = await fetch("/api/jobs?limit=10", {
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Could not load recent jobs");
+      }
+      renderJobs(payload.jobs || []);
+    } catch (error) {
+      jobsList.textContent = error.message;
+    }
+  }
+
+  function renderJobs(jobs) {
+    jobsList.replaceChildren();
+    if (!jobs.length) {
+      jobsList.textContent = "No recent jobs.";
+      return;
+    }
+
+    for (const job of jobs) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "job-row";
+      item.innerHTML = [
+        '<span class="job-main">',
+        escapeHtml(job.source_filename || "source"),
+        " -> ",
+        escapeHtml(job.driving_filename || "driving"),
+        "</span>",
+        '<span class="job-meta">',
+        escapeHtml(job.status),
+        " · ",
+        escapeHtml(formatTime(job.updated_at)),
+        "</span>",
+      ].join("");
+      item.addEventListener("click", () => selectJob(job));
+      jobsList.appendChild(item);
+    }
+  }
+
+  async function selectJob(job) {
+    setStatus(job.status);
+    details.textContent = "Job " + job.job_id + " updated at " + job.updated_at;
+    resetResult();
+    if (job.status === "succeeded") {
+      await loadResult(job.job_id);
+    }
   }
 
   function renderPreview(blob, url) {
@@ -149,5 +208,26 @@
     setStatus("Failed");
     details.textContent = error.message;
     submitButton.disabled = false;
+  }
+
+  function formatTime(value) {
+    if (!value) {
+      return "unknown";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString();
+  }
+
+  function escapeHtml(value) {
+    return String(value || "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    }[character]));
   }
 })();

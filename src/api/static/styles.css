@@ -219,6 +219,70 @@ button:disabled {
   display: none;
 }
 
+.history-panel {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.secondary-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfa;
+  color: var(--ink);
+}
+
+.secondary-button:hover {
+  background: #eef2ed;
+}
+
+.jobs-list {
+  display: grid;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.job-row {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  background: #fbfcfa;
+  color: var(--ink);
+  text-align: left;
+}
+
+.job-row:hover {
+  background: #eef2ed;
+}
+
+.job-main,
+.job-meta {
+  overflow-wrap: anywhere;
+}
+
+.job-main {
+  font-weight: 700;
+}
+
+.job-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 820px) {
   .app-shell {
     width: min(100% - 20px, 560px);

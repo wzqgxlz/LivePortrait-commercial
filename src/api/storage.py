@@ -124,6 +124,15 @@ class JobStore:
             rows = conn.execute("SELECT * FROM jobs ORDER BY created_at ASC").fetchall()
         return [_row_to_job(row) for row in rows]
 
+    def list_recent_jobs(self, limit: int = 20) -> list[JobRecord]:
+        safe_limit = max(1, min(limit, 100))
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
+                (safe_limit,),
+            ).fetchall()
+        return [_row_to_job(row) for row in rows]
+
     def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
         placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
         with self._connect() as conn:

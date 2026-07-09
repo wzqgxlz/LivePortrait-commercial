@@ -47,6 +47,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     script = Path("scripts/check_api_deployment.py").read_text(encoding="utf-8")
 
     assert "/api/health" in script
+    assert "/api/jobs?limit=1" in script
     assert "/audit" in script
     assert "x-api-key" in script
     assert "Expected unauthorized response" in script

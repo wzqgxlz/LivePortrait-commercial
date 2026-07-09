@@ -40,6 +40,7 @@ set, every job endpoint requires the same value in the `x-api-key` header.
 Protected endpoints:
 
 - `POST /api/jobs`
+- `GET /api/jobs`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/result`
 - `GET /api/jobs/{job_id}/audit`
@@ -102,6 +103,15 @@ Status values:
 - `running`
 - `succeeded`
 - `failed`
+
+### List Recent Jobs
+
+```http
+GET /api/jobs?limit=20
+```
+
+Returns recent jobs in newest-first order. The frontend uses this endpoint to
+show the Recent jobs list.
 
 ### Download Result
 
@@ -255,6 +265,7 @@ Browser flow:
 - Selected the source image and driving image.
 - Submitted the job from the page.
 - Waited for the page to poll the job status.
+- Confirmed the job appeared in Recent jobs.
 - Confirmed the generated result preview appeared.
 - Downloaded the result from the page.
 

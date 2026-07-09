@@ -7,7 +7,7 @@ from pathlib import Path
 from queue import Queue
 from typing import Dict
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -96,6 +96,13 @@ def create_app(
         if enqueue_jobs:
             queue.put(job.job_id)
         return _job_payload(job)
+
+    @app.get("/api/jobs")
+    def list_jobs(
+        limit: int = Query(20, ge=1, le=100),
+        _: None = Depends(require_api_key),
+    ) -> Dict[str, object]:
+        return {"jobs": [_job_payload(job) for job in store.list_recent_jobs(limit=limit)]}
 
     @app.get("/api/jobs/{job_id}")
     def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
