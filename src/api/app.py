@@ -138,15 +138,58 @@ def create_app(
     def list_jobs(
         limit: int = Query(20, ge=1, le=100),
         status: str | None = Query(default=None),
+        authorization_reference: str | None = Query(default=None),
+        authorization_status: str | None = Query(default=None),
         _: None = Depends(require_api_key),
     ) -> Dict[str, object]:
         _validate_job_status(status)
+        authorization_reference = _clean_optional_form_value(authorization_reference)
+        authorization_status = _validate_optional_authorization_status(authorization_status)
         return {
             "jobs": [
                 _job_payload(job)
-                for job in store.list_recent_jobs(limit=limit, status=status)
+                for job in store.list_recent_jobs(
+                    limit=limit,
+                    status=status,
+                    authorization_reference=authorization_reference,
+                    authorization_status=authorization_status,
+                )
             ]
         }
+
+    @app.get("/api/authorization-records/export")
+    def export_authorization_record(
+        authorization_reference: str = Query(...),
+        _: None = Depends(require_api_key),
+    ) -> JSONResponse:
+        authorization_reference = _clean_optional_form_value(authorization_reference)
+        if authorization_reference is None:
+            raise HTTPException(status_code=400, detail="authorization_reference is required")
+        jobs = store.list_recent_jobs(limit=100, authorization_reference=authorization_reference)
+        if not jobs:
+            raise HTTPException(status_code=404, detail="authorization record not found")
+        payload = {
+            "export_version": "liveportrait-authorization-export-v1",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "authorization_reference": authorization_reference,
+            "jobs": [
+                {
+                    "job": _job_payload(job),
+                    "audit_events": [
+                        _audit_event_payload(event)
+                        for event in store.list_audit_events(job.job_id)
+                    ],
+                }
+                for job in jobs
+            ],
+        }
+        filename = _safe_filename(authorization_reference).replace(" ", "_")
+        return JSONResponse(
+            payload,
+            headers={
+                "Content-Disposition": f'attachment; filename="liveportrait-authorization-{filename}.json"'
+            },
+        )
 
     @app.get("/api/jobs/{job_id}")
     def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
@@ -275,6 +318,15 @@ def _validate_authorization_status(status: str) -> str:
     return value
 
 
+def _validate_optional_authorization_status(status: str | None) -> str | None:
+    if status is None:
+        return None
+    cleaned = status.strip()
+    if not cleaned:
+        return None
+    return _validate_authorization_status(cleaned)
+
+
 def _clean_optional_form_value(value: str | None) -> str | None:
     if value is None:
         return None
@@ -324,6 +376,15 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
     if job.error_message:
         payload["error_message"] = job.error_message
     return payload
+
+
+def _audit_event_payload(event) -> Dict[str, object]:
+    return {
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "metadata": event.metadata,
+        "created_at": event.created_at,
+    }
 
 
 def _safe_filename(filename: str | None) -> str:

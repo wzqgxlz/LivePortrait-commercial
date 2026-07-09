@@ -156,3 +156,45 @@ def test_job_store_lists_recent_jobs_newest_first(tmp_path):
     recent = store.list_recent_jobs(limit=2)
 
     assert [job.job_id for job in recent] == [created_ids[2], created_ids[1]]
+
+
+def test_job_store_filters_recent_jobs_by_authorization_metadata(tmp_path):
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    matching_ids = []
+    cases = [
+        ("CRM-2026-0001", "approved"),
+        ("CRM-2026-0002", "approved"),
+        ("CRM-2026-0001", "needs_review"),
+    ]
+    for index, (reference, auth_status) in enumerate(cases):
+        source_path = tmp_path / f"source-{index}.jpg"
+        driving_path = tmp_path / f"driving-{index}.jpg"
+        source_path.write_bytes(f"source-{index}".encode("utf-8"))
+        driving_path.write_bytes(f"driving-{index}".encode("utf-8"))
+        job = store.create_job(
+            source_filename=source_path.name,
+            driving_filename=driving_path.name,
+            source_path=source_path,
+            driving_path=driving_path,
+            output_dir=tmp_path / f"outputs-{index}",
+            consent_confirmed=True,
+            authorization_reference=reference,
+            authorization_status=auth_status,
+        )
+        if reference == "CRM-2026-0001":
+            matching_ids.append(job.job_id)
+
+    by_reference = store.list_recent_jobs(
+        limit=10,
+        authorization_reference="CRM-2026-0001",
+    )
+    by_reference_and_status = store.list_recent_jobs(
+        limit=10,
+        authorization_reference="CRM-2026-0001",
+        authorization_status="approved",
+    )
+
+    assert [job.job_id for job in by_reference] == list(reversed(matching_ids))
+    assert [job.authorization_status for job in by_reference_and_status] == ["approved"]

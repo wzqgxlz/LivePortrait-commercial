@@ -144,7 +144,26 @@
                   <option value="failed">Failed</option>
                 </select>
               </label>
+              <label class="compact-field">
+                <span>Review</span>
+                <select id="authorization-status-filter">
+                  <option value="">All</option>
+                  <option value="self_confirmed">Self confirmed</option>
+                  <option value="approved">Approved</option>
+                  <option value="needs_review">Needs review</option>
+                </select>
+              </label>
+              <label class="compact-field compact-field-wide">
+                <span>Auth ref</span>
+                <input
+                  id="authorization-reference-filter"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="CRM, ticket, contract"
+                />
+              </label>
               <button id="refresh-jobs" class="secondary-button" type="button">Refresh</button>
+              <button id="export-authorization-record" class="secondary-button" type="button">Export auth</button>
             </div>
           </div>
           <div id="jobs-list" class="jobs-list">No recent jobs.</div>

@@ -390,6 +390,7 @@ button:disabled {
 .history-tools {
   display: flex;
   align-items: end;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -399,6 +400,10 @@ button:disabled {
   gap: 4px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.compact-field-wide {
+  min-width: 190px;
 }
 
 .secondary-button {

@@ -86,7 +86,16 @@ GET /api/jobs?status=running
 GET /api/jobs?status=pending
 ```
 
-The frontend exposes the same filter in the Recent jobs section.
+Use authorization filters to review customer or pilot records:
+
+```http
+GET /api/jobs?authorization_status=approved
+GET /api/jobs?authorization_status=needs_review
+GET /api/jobs?authorization_reference=CRM-2026-0001
+```
+
+The frontend exposes the same job-status, authorization-status, and
+authorization-reference filters in the Recent jobs section.
 
 ### Cleanup
 
@@ -139,10 +148,18 @@ GET /api/jobs/{job_id}/export
 GET /api/jobs/{job_id}/audit
 ```
 
+5. If a report covers all work under one authorization record, export the
+   reference package.
+
+```http
+GET /api/authorization-records/export?authorization_reference=CRM-2026-0001
+```
+
 The export contains input hashes, output hash when available, authorization
 confirmation, policy version, timestamps, status, failure message, and audit
-events. Do not share source images, driving files, or generated output outside
-the authorized support channel.
+events. The authorization-reference export contains the same job and audit data
+for up to 100 recent jobs tied to that reference. Do not share source images,
+driving files, or generated output outside the authorized support channel.
 
 ## Incident Response
 

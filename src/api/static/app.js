@@ -25,7 +25,10 @@
   const drivingSummary = document.getElementById("driving-summary");
   const jobsList = document.getElementById("jobs-list");
   const jobStatusFilter = document.getElementById("job-status-filter");
+  const authorizationStatusFilter = document.getElementById("authorization-status-filter");
+  const authorizationReferenceFilter = document.getElementById("authorization-reference-filter");
   const refreshJobsButton = document.getElementById("refresh-jobs");
+  const exportAuthorizationRecordButton = document.getElementById("export-authorization-record");
   const sourceRules = {
     label: "Source image",
     extensions: [".jpg", ".jpeg", ".png"],
@@ -47,6 +50,7 @@
   };
   let currentResultUrl = null;
   let currentAuditUrl = null;
+  let currentAuthorizationExportUrl = null;
   let maxUploadBytes = null;
 
   apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
@@ -71,7 +75,10 @@
   });
   consentInput.addEventListener("change", clearFormErrors);
   jobStatusFilter.addEventListener("change", loadJobs);
+  authorizationStatusFilter.addEventListener("change", loadJobs);
+  authorizationReferenceFilter.addEventListener("change", loadJobs);
   refreshJobsButton.addEventListener("click", loadJobs);
+  exportAuthorizationRecordButton.addEventListener("click", exportAuthorizationRecord);
   clearResultButton.addEventListener("click", clearCurrentJob);
 
   async function createJob(event) {
@@ -187,8 +194,20 @@
 
   async function loadJobs() {
     try {
+      const query = new URLSearchParams({ limit: "10" });
       const status = jobStatusFilter.value;
-      const url = "/api/jobs?limit=10" + (status ? "&status=" + encodeURIComponent(status) : "");
+      const authorizationStatus = authorizationStatusFilter.value;
+      const authorizationReference = authorizationReferenceFilter.value.trim();
+      if (status) {
+        query.set("status", status);
+      }
+      if (authorizationStatus) {
+        query.set("authorization_status", authorizationStatus);
+      }
+      if (authorizationReference) {
+        query.set("authorization_reference", authorizationReference);
+      }
+      const url = "/api/jobs?" + query.toString();
       const response = await fetch(url, {
         headers: authHeaders(),
       });
@@ -205,7 +224,7 @@
   function renderJobs(jobs) {
     jobsList.replaceChildren();
     if (!jobs.length) {
-      jobsList.textContent = jobStatusFilter.value ? "No jobs match this status." : "No recent jobs.";
+      jobsList.textContent = hasJobFilters() ? "No jobs match the current filters." : "No recent jobs.";
       return;
     }
 
@@ -225,6 +244,8 @@
         '">',
         escapeHtml(job.status),
         "</span>",
+        " ",
+        escapeHtml(job.authorization_reference || "No auth ref"),
         " ",
         escapeHtml(formatTime(job.updated_at)),
         "</span>",
@@ -248,6 +269,41 @@
       await loadResult(job.job_id);
       await loadAuditExport(job.job_id);
       renderCompletion(job);
+    }
+  }
+
+  async function exportAuthorizationRecord() {
+    const authorizationReference = authorizationReferenceFilter.value.trim();
+    if (!authorizationReference) {
+      jobsList.textContent = "Enter an authorization reference before exporting.";
+      return;
+    }
+
+    try {
+      exportAuthorizationRecordButton.disabled = true;
+      const response = await fetch(
+        "/api/authorization-records/export?authorization_reference=" + encodeURIComponent(authorizationReference),
+        { headers: authHeaders() },
+      );
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Authorization export failed");
+      }
+      if (currentAuthorizationExportUrl) {
+        URL.revokeObjectURL(currentAuthorizationExportUrl);
+      }
+      currentAuthorizationExportUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      }));
+      const link = document.createElement("a");
+      link.href = currentAuthorizationExportUrl;
+      link.download = "liveportrait-authorization-" + safeDownloadName(authorizationReference) + ".json";
+      link.click();
+      details.textContent = "Authorization export downloaded for " + authorizationReference + ".";
+    } catch (error) {
+      details.textContent = error.message;
+    } finally {
+      exportAuthorizationRecordButton.disabled = false;
     }
   }
 
@@ -421,6 +477,18 @@
   function authHeaders() {
     const key = apiKeyInput.value.trim();
     return key ? { "x-api-key": key } : {};
+  }
+
+  function hasJobFilters() {
+    return Boolean(
+      jobStatusFilter.value ||
+      authorizationStatusFilter.value ||
+      authorizationReferenceFilter.value.trim(),
+    );
+  }
+
+  function safeDownloadName(value) {
+    return String(value || "record").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "record";
   }
 
   async function readJson(response) {

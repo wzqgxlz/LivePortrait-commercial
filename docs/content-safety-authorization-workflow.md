@@ -24,6 +24,9 @@ The current API and frontend already enforce these baseline controls:
 - Successful output is hashed as `output_sha256`.
 - Audit events record `created`, `running`, `succeeded`, and `failed`.
 - `GET /api/jobs/{job_id}/export` downloads the job support package.
+- `GET /api/authorization-records/export?authorization_reference=<reference>`
+  downloads a grouped support package for recent jobs tied to one authorization
+  reference.
 - The frontend shows authorization language and optional authorization record
   fields before submission.
 
@@ -159,6 +162,17 @@ GET /api/jobs/{job_id}/export
 
 5. Preserve the export with the support case. Do not share source or output
 files outside the authorized support channel.
+
+For a customer ticket, CRM ID, contract ID, or other authorization reference
+that covers multiple jobs, use:
+
+```http
+GET /api/jobs?authorization_reference=<reference>
+GET /api/authorization-records/export?authorization_reference=<reference>
+```
+
+The grouped export is useful for internal review and customer support, but it
+should still be linked back to the full external authorization record.
 
 ## Retention
 

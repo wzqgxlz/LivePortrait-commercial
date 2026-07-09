@@ -36,6 +36,7 @@ wrapper:
 - Job queue/status tracking.
 - Result download.
 - Audit timeline and audit JSON export.
+- Authorization-reference filtering and grouped authorization export.
 - Upload type/size limits and active queue limit.
 - Recent job status filtering for lightweight operations triage.
 - Cleanup run records for retention/deletion evidence.
@@ -57,10 +58,10 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, export, and health checks. |
+| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, single-job export, authorization-reference export, and health checks. |
 | API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, API Key, upload limit, and active job limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
-| SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, lightweight authorization metadata, audit events, and output metadata. |
+| SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, lightweight authorization metadata, audit events, output metadata, and recent-job authorization filters. |
 | Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, and can append cleanup run records. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
@@ -68,9 +69,9 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, and authorization-aware job detail rendering. |
-| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, and job detail styling. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, authorization filters, grouped authorization export, and authorization-aware job detail rendering. |
+| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, and job detail styling. |
 
 ## Frontend Features Delivered
 
@@ -86,6 +87,9 @@ wrapper:
 - Result preview and result download.
 - Audit JSON download after success.
 - Recent jobs list.
+- Recent jobs filters for job status, authorization status, and authorization
+  reference.
+- Authorization-reference JSON export from the Recent jobs panel.
 - Job detail panel with status, Job ID, filenames, authorization metadata,
   timestamps, input hashes, output hash, and failure reason.
 - Clear button for the current selected job.
@@ -103,7 +107,7 @@ wrapper:
 | systemd environment template | `deploy/liveportrait-api.env.example` | Production-style environment variables for API deployment. |
 | systemd service template | `deploy/liveportrait-api.service` | Example Linux service unit for long-running API deployment. |
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
-| Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, and API Key protection. |
+| Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, and authorization export protection. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
@@ -126,8 +130,8 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| API service tests | `tests/test_api_service.py` | Covers frontend static assets, job creation, consent, API Key auth, result endpoint, audit export, upload validation, and queue limit behavior. |
-| API storage tests | `tests/test_api_storage.py` | Covers SQLite job persistence, hashes, status transitions, and audit records. |
+| API service tests | `tests/test_api_service.py` | Covers frontend static assets, job creation, consent, API Key auth, result endpoint, audit export, authorization filters/export, upload validation, and queue limit behavior. |
+| API storage tests | `tests/test_api_storage.py` | Covers SQLite job persistence, hashes, status transitions, audit records, and authorization metadata filters. |
 | API cleanup tests | `tests/test_api_cleanup.py` | Covers deletion behavior for old terminal jobs. |
 | Deployment script tests | `tests/test_deployment_scripts.py` | Covers deployment scripts, env templates, docs, auth checks, and smoke-job script expectations. |
 | GPU migration script tests | `tests/test_gpu_migration_scripts.py` | Covers GPU migration helper script expectations. |
@@ -148,7 +152,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-44 passed
+47 passed
 Commercial safety scan passed.
 ```
 
@@ -156,6 +160,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `23728f2` | `feat: add lightweight authorization metadata` |
 | `eddf8e8` | `docs: add content safety authorization workflow` |
 | `ee44ca4` | `docs: add deployment acceptance checklist` |
 | `9886276` | `docs: add production operations guide` |

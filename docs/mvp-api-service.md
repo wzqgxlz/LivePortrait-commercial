@@ -52,6 +52,7 @@ Protected endpoints:
 - `GET /api/jobs/{job_id}/result`
 - `GET /api/jobs/{job_id}/audit`
 - `GET /api/jobs/{job_id}/export`
+- `GET /api/authorization-records/export`
 
 Public endpoint:
 
@@ -73,8 +74,11 @@ It also shows selected file names and sizes, checks file type/size before
 submission, displays queue-limit or upload-limit errors inline, and shows a
 job details panel with authorization metadata, timestamps, input/output hashes,
 and failure messages. Recent jobs can be selected again to reload the result and
-audit export. The page also includes API Key guidance, an empty state for
-first-time users, and a completion panel after successful generation.
+audit export. Operators can filter recent jobs by job status, authorization
+status, and authorization reference, then export a JSON package for all recent
+jobs attached to one authorization reference. The page also includes API Key
+guidance, an empty state for first-time users, and a completion panel after
+successful generation.
 
 ## Endpoints
 
@@ -149,6 +153,17 @@ GET /api/jobs?limit=20&status=succeeded
 Supported `status` values are `pending`, `running`, `succeeded`, and `failed`.
 The frontend exposes this as the Recent jobs status filter.
 
+Authorization filters:
+
+```http
+GET /api/jobs?authorization_status=approved
+GET /api/jobs?authorization_reference=CRM-2026-0001
+GET /api/jobs?status=succeeded&authorization_status=approved&authorization_reference=CRM-2026-0001
+```
+
+Supported `authorization_status` values are `self_confirmed`, `approved`, and
+`needs_review`.
+
 ### Download Result
 
 ```http
@@ -182,8 +197,22 @@ succeeds.
 For administrator support workflows, use:
 
 - `GET /api/jobs?status=failed` to find failed jobs.
+- `GET /api/jobs?authorization_reference=<reference>` to find jobs attached to
+  one authorization record.
 - `GET /api/jobs/{job_id}/export` to download a job traceability package.
 - `GET /api/jobs/{job_id}/audit` to inspect the raw timeline without download.
+
+### Download Authorization Record Export
+
+```http
+GET /api/authorization-records/export?authorization_reference=CRM-2026-0001
+```
+
+Returns a downloadable JSON package containing up to 100 recent jobs with that
+authorization reference and each job's audit timeline. This is a lightweight
+operator export for B-side pilots and support cases; it does not replace the
+full external authorization record described in
+`docs/content-safety-authorization-workflow.md`.
 
 ## Before Serving Users
 

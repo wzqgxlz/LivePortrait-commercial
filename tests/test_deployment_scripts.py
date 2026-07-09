@@ -51,6 +51,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
 
     assert "/api/health" in script
     assert "/api/jobs?limit=1" in script
+    assert "/api/authorization-records/export" in script
     assert "/audit" in script
     assert "/export" in script
     assert "x-api-key" in script
@@ -85,6 +86,8 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "Support Export" in doc
     assert "cleanup-runs.jsonl" in doc
     assert "GET /api/jobs?status=failed" in doc
+    assert "GET /api/jobs?authorization_reference=CRM-2026-0001" in doc
+    assert "GET /api/authorization-records/export?authorization_reference=CRM-2026-0001" in doc
     assert "GET /api/jobs/{job_id}/export" in doc
     assert "Incident Response" in doc
 
@@ -109,5 +112,6 @@ def test_content_safety_authorization_workflow_covers_mvp_controls():
     assert "Prohibited Uses" in doc
     assert "Manual Review" in doc
     assert "GET /api/jobs/{job_id}/export" in doc
+    assert "GET /api/authorization-records/export?authorization_reference=<reference>" in doc
     assert "consent_confirmed" in doc
     assert "Retention" in doc

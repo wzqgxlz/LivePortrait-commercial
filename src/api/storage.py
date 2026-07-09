@@ -142,19 +142,31 @@ class JobStore:
             rows = conn.execute("SELECT * FROM jobs ORDER BY created_at ASC").fetchall()
         return [_row_to_job(row) for row in rows]
 
-    def list_recent_jobs(self, limit: int = 20, status: str | None = None) -> list[JobRecord]:
+    def list_recent_jobs(
+        self,
+        limit: int = 20,
+        status: str | None = None,
+        authorization_reference: str | None = None,
+        authorization_status: str | None = None,
+    ) -> list[JobRecord]:
         safe_limit = max(1, min(limit, 100))
+        clauses = []
+        values = []
+        if status is not None:
+            clauses.append("status = ?")
+            values.append(status)
+        if authorization_reference is not None:
+            clauses.append("authorization_reference = ?")
+            values.append(authorization_reference)
+        if authorization_status is not None:
+            clauses.append("authorization_status = ?")
+            values.append(authorization_status)
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._connect() as conn:
-            if status is None:
-                rows = conn.execute(
-                    "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
-                    (safe_limit,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                    (status, safe_limit),
-                ).fetchall()
+            rows = conn.execute(
+                f"SELECT * FROM jobs {where_clause} ORDER BY created_at DESC LIMIT ?",
+                (*values, safe_limit),
+            ).fetchall()
         return [_row_to_job(row) for row in rows]
 
     def count_active_jobs(self) -> int:

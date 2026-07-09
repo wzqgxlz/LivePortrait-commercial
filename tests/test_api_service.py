@@ -38,6 +38,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="empty-state"' in page_response.text
         assert 'id="completion-panel"' in page_response.text
         assert 'id="job-status-filter"' in page_response.text
+        assert 'id="authorization-reference-filter"' in page_response.text
+        assert 'id="authorization-status-filter"' in page_response.text
+        assert 'id="export-authorization-record"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
         assert 'id="authorization-reviewer"' in page_response.text
@@ -57,7 +60,10 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "shortHash" in script_response.text
         assert "loadJobs" in script_response.text
         assert "jobStatusFilter" in script_response.text
+        assert "authorizationReferenceFilter" in script_response.text
+        assert "exportAuthorizationRecord" in script_response.text
         assert "status=" in script_response.text
+        assert "authorization_reference=" in script_response.text
         assert "loadAuditExport" in script_response.text
         assert "status-chip" in script_response.text
         assert "formatBytes" in script_response.text
@@ -278,6 +284,107 @@ def test_list_jobs_can_filter_by_status(tmp_path):
         assert invalid_status.status_code == 400
 
 
+def test_list_jobs_can_filter_by_authorization_metadata(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        first_response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_reference": "CRM-2026-0001",
+                "authorization_status": "approved",
+            },
+            files={
+                "source": ("first-source.jpg", b"first-source", "image/jpeg"),
+                "driving": ("first-driving.jpg", b"first-driving", "image/jpeg"),
+            },
+        )
+        second_response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_reference": "CRM-2026-0002",
+                "authorization_status": "needs_review",
+            },
+            files={
+                "source": ("second-source.jpg", b"second-source", "image/jpeg"),
+                "driving": ("second-driving.jpg", b"second-driving", "image/jpeg"),
+            },
+        )
+
+        by_reference = client.get("/api/jobs?authorization_reference=CRM-2026-0001")
+        by_status = client.get("/api/jobs?authorization_status=needs_review")
+        invalid_status = client.get("/api/jobs?authorization_status=rejected")
+
+        assert by_reference.status_code == 200
+        assert [job["job_id"] for job in by_reference.json()["jobs"]] == [first_response.json()["job_id"]]
+        assert by_status.status_code == 200
+        assert [job["job_id"] for job in by_status.json()["jobs"]] == [second_response.json()["job_id"]]
+        assert invalid_status.status_code == 400
+
+
+def test_export_authorization_record_returns_matching_jobs_and_audits(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        matching_response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_reference": "CRM-2026-0001",
+                "authorization_status": "approved",
+            },
+            files={
+                "source": ("matching-source.jpg", b"matching-source", "image/jpeg"),
+                "driving": ("matching-driving.jpg", b"matching-driving", "image/jpeg"),
+            },
+        )
+        other_response = client.post(
+            "/api/jobs",
+            data={
+                "consent_confirmed": "true",
+                "authorization_reference": "CRM-2026-0002",
+                "authorization_status": "approved",
+            },
+            files={
+                "source": ("other-source.jpg", b"other-source", "image/jpeg"),
+                "driving": ("other-driving.jpg", b"other-driving", "image/jpeg"),
+            },
+        )
+
+        export_response = client.get(
+            "/api/authorization-records/export?authorization_reference=CRM-2026-0001"
+        )
+        missing_response = client.get(
+            "/api/authorization-records/export?authorization_reference=missing"
+        )
+
+        assert export_response.status_code == 200
+        payload = export_response.json()
+        assert payload["export_version"] == "liveportrait-authorization-export-v1"
+        assert payload["authorization_reference"] == "CRM-2026-0001"
+        assert [item["job"]["job_id"] for item in payload["jobs"]] == [matching_response.json()["job_id"]]
+        assert payload["jobs"][0]["audit_events"][0]["event_type"] == "created"
+        assert other_response.json()["job_id"] not in str(payload)
+        assert "attachment" in export_response.headers["content-disposition"]
+        assert missing_response.status_code == 404
+
+
 def test_create_job_rejects_unsupported_source_type(tmp_path):
     from src.api.app import create_app
     from src.api.config import ApiConfig
@@ -401,9 +508,13 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         result_response = client.get(f"/api/jobs/{job_id}/result")
         list_response = client.get("/api/jobs")
         export_response = client.get(f"/api/jobs/{job_id}/export")
+        authorization_export_response = client.get(
+            "/api/authorization-records/export?authorization_reference=CRM-2026-0001"
+        )
         assert result_response.status_code == 401
         assert list_response.status_code == 401
         assert export_response.status_code == 401
+        assert authorization_export_response.status_code == 401
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

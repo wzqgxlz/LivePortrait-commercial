@@ -29,6 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _check_job_list_auth_guard(base_url),
         _check_audit_auth_guard(base_url),
         _check_export_auth_guard(base_url),
+        _check_authorization_export_auth_guard(base_url),
     ]
     if args.api_key:
         checks.append(_check_authenticated_request(base_url, args.api_key))
@@ -89,6 +90,13 @@ def _check_export_auth_guard(base_url: str) -> tuple[bool, str]:
     if result.status == 401:
         return True, "Audit export endpoint rejects requests without x-api-key."
     return False, f"Audit export endpoint should reject requests without x-api-key, got HTTP {result.status}."
+
+
+def _check_authorization_export_auth_guard(base_url: str) -> tuple[bool, str]:
+    result = _get(f"{base_url}/api/authorization-records/export?authorization_reference=not-found")
+    if result.status == 401:
+        return True, "Authorization export endpoint rejects requests without x-api-key."
+    return False, f"Authorization export endpoint should reject requests without x-api-key, got HTTP {result.status}."
 
 
 def _check_authenticated_request(base_url: str, api_key: str) -> tuple[bool, str]:
