@@ -111,6 +111,7 @@ wrapper:
 | Deliverables index | `PROJECT_DELIVERABLES.md` | This running inventory of project outputs. |
 | API service guide | `docs/mvp-api-service.md` | Main operator/developer reference for the MVP API and frontend. |
 | GPU deployment guide | `docs/gpu-api-deployment.md` | GPU machine setup and deployment reference. |
+| Production operations guide | `docs/production-operations.md` | Launch checklist, daily operations, support export, cleanup evidence, incident response, and MVP limitations. |
 | Humans regression record | `docs/humans-mediapipe-regression-2026-07-08.md` | Recorded Humans mode MediaPipe regression notes. |
 | Commercial migration plan | `docs/superpowers/plans/2026-07-08-commercial-mediapipe-cropper.md` | Implementation plan used for the commercial-safe MediaPipe migration. |
 
@@ -140,7 +141,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-38 passed
+39 passed
 Commercial safety scan passed.
 ```
 
@@ -148,6 +149,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `31dc931` | `feat: add lightweight operations controls` |
 | `00b64f8` | `feat: refine frontend trial experience` |
 | `6b82ff8` | `docs: add project deliverables index` |
 | `69c8926` | `feat: add frontend job detail panel` |
@@ -184,7 +186,6 @@ directory.
 When implemented, add new entries for:
 
 - Deployment acceptance checklist.
-- Production operations notes.
 - Content moderation and authorization-record workflow.
 - Billing/admin/backend artifacts, if built.
 - Any GPU regression report from a rented GPU machine.

@@ -75,3 +75,15 @@ def test_cleanup_script_records_cleanup_runs():
 
     assert "cleanup-runs.jsonl" in script
     assert "record=" in script
+
+
+def test_production_operations_doc_covers_launch_and_support_workflows():
+    doc = Path("docs/production-operations.md").read_text(encoding="utf-8")
+
+    assert "Launch Checklist" in doc
+    assert "Daily Operations" in doc
+    assert "Support Export" in doc
+    assert "cleanup-runs.jsonl" in doc
+    assert "GET /api/jobs?status=failed" in doc
+    assert "GET /api/jobs/{job_id}/export" in doc
+    assert "Incident Response" in doc
