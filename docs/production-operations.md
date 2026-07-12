@@ -88,6 +88,8 @@ Use these checks while the MVP is serving testers.
 - Revoke a Key from the frontend or with
   `POST /api/admin/api-keys/{key_id}/revoke` as soon as it is no longer needed
   or may have been exposed.
+- Review `GET /api/admin/audit-events` or the frontend Operations audit panel
+  after issuing/revoking Keys to confirm the action was recorded.
 - Confirm a user Key can access only its own jobs through `GET /api/whoami` and
   `GET /api/jobs`.
 - Keep cleanup and cross-customer support work on an administrator Key.
@@ -120,6 +122,20 @@ GET /api/jobs?authorization_reference=CRM-2026-0001
 The frontend exposes the same job-status, authorization-status, and
 authorization-reference filters in the Recent jobs section. Administrators also
 get an owner filter for cross-customer support checks.
+
+### Operations Audit
+
+Use the administrator endpoint when you need to review management actions:
+
+```http
+GET /api/admin/audit-events?limit=50
+GET /api/admin/audit-events?action=api_key.revoked
+```
+
+The audit includes the actor owner, actor Key ID when available, role, action,
+target type, target ID, metadata, and timestamp. It records managed Key creation
+and revocation, cleanup dry-runs/deletions, and failed-job retries. It stores
+non-secret Key prefixes only, never raw API Key values.
 
 ### Restart And Retry Handling
 
@@ -222,6 +238,7 @@ Use this lightweight flow for MVP incidents.
 - Rotate `LIVEPORTRAIT_API_KEY` only when the bootstrap administrator Key is
   exposed, then restart the service.
 - Preserve the related job export from `GET /api/jobs/{job_id}/export`.
+- Preserve related operation records from `GET /api/admin/audit-events`.
 - Preserve `cleanup-runs.jsonl` and service logs.
 - Review the source authorization confirmation and policy version in the export.
 

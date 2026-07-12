@@ -241,7 +241,23 @@ Pass/Fail Criteria:
 - Fail: raw old Keys are visible, non-admin users see the panel, or owner
   isolation fails.
 
-### 10. Cleanup Evidence
+### 10. Operations Audit
+
+- [ ] `GET /api/admin/audit-events?limit=20` returns recent operational events.
+- [ ] Creating a test personal Key records `api_key.created`.
+- [ ] Revoking that test personal Key records `api_key.revoked`.
+- [ ] Retention dry-run records `cleanup.dry_run`.
+- [ ] Failed-job retry records `job.retried` when a retry is performed.
+- [ ] Audit metadata does not contain raw API Key values.
+
+Pass/Fail Criteria:
+
+- Pass: administrator and support actions are traceable without exposing
+  secrets.
+- Fail: management actions are missing, non-admin users can read the endpoint,
+  or raw API Keys appear in audit metadata.
+
+### 11. Cleanup Evidence
 
 Run cleanup dry-run:
 

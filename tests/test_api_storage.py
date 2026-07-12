@@ -42,6 +42,45 @@ def test_job_store_migrates_existing_database_with_consent_columns(tmp_path):
     assert "idempotency_key" in columns
     assert "attempt_count" in columns
 
+    with sqlite3.connect(db_path) as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+    assert "operational_audit_events" in tables
+
+
+def test_job_store_records_operational_audit_events(tmp_path):
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+
+    created = store.record_operational_audit_event(
+        actor_owner_id="bootstrap-admin",
+        actor_key_id=None,
+        actor_role="admin",
+        action="api_key.created",
+        target_type="api_key",
+        target_id="key-001",
+        metadata={"owner_id": "customer-001", "key_prefix": "lp_abc"},
+    )
+    store.record_operational_audit_event(
+        actor_owner_id="customer-001",
+        actor_key_id="key-001",
+        actor_role="user",
+        action="job.retried",
+        target_type="job",
+        target_id="job-001",
+        metadata={"attempt_count": 1},
+    )
+
+    all_events = store.list_operational_audit_events()
+    key_events = store.list_operational_audit_events(action="api_key.created")
+    actor_events = store.list_operational_audit_events(actor_owner_id="customer-001")
+
+    assert created.event_id > 0
+    assert [event.action for event in all_events] == ["job.retried", "api_key.created"]
+    assert key_events[0].target_id == "key-001"
+    assert key_events[0].metadata["owner_id"] == "customer-001"
+    assert actor_events[0].action == "job.retried"
+
 
 def test_job_store_records_audit_events_and_output_hash(tmp_path):
     from src.api.storage import JobStore

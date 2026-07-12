@@ -67,6 +67,7 @@ Protected endpoints:
 - `GET /api/admin/api-keys` (administrator only)
 - `POST /api/admin/api-keys` (administrator only)
 - `POST /api/admin/api-keys/{key_id}/revoke` (administrator only)
+- `GET /api/admin/audit-events` (administrator only)
 
 Public endpoint:
 
@@ -122,6 +123,12 @@ bootstrap administrator Key in the Personal access key field, then use the
 Access management panel to issue `user` or `admin` Keys. The raw Key is displayed
 only once in the browser after creation; the list view shows only the non-secret
 prefix, owner, role, label, status, and timestamps.
+
+Administrator and operational actions are recorded in
+`operational_audit_events`. The Operations audit panel and
+`GET /api/admin/audit-events` show recent actions such as `api_key.created`,
+`api_key.revoked`, `cleanup.dry_run`, `cleanup.deleted`, and `job.retried`.
+Audit metadata never stores raw API Key secrets.
 
 List Keys without exposing secrets:
 

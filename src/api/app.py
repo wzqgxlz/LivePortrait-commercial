@@ -133,6 +133,24 @@ def create_app(
     def list_api_keys(_: Principal = Depends(require_admin)) -> Dict[str, object]:
         return {"api_keys": [_api_key_payload(record) for record in store.list_api_keys()]}
 
+    @app.get("/api/admin/audit-events")
+    def list_operational_audit_events(
+        limit: int = Query(50, ge=1, le=200),
+        action: str | None = Query(default=None),
+        actor_owner_id: str | None = Query(default=None),
+        _: Principal = Depends(require_admin),
+    ) -> Dict[str, object]:
+        return {
+            "events": [
+                _operational_audit_event_payload(event)
+                for event in store.list_operational_audit_events(
+                    limit=limit,
+                    action=_clean_optional_form_value(action),
+                    actor_owner_id=_clean_optional_form_value(actor_owner_id),
+                )
+            ]
+        }
+
     @app.get("/api/whoami")
     def whoami(principal: Principal = Depends(require_principal)) -> Dict[str, object]:
         return {
@@ -144,23 +162,49 @@ def create_app(
     @app.post("/api/admin/api-keys", status_code=201)
     def create_api_key(
         payload: dict = Body(default_factory=dict),
-        _: Principal = Depends(require_admin),
+        principal: Principal = Depends(require_admin),
     ) -> Dict[str, object]:
         owner_id = _required_owner_id(payload.get("owner_id"))
         role = _validate_api_key_role(payload.get("role", "user"))
         label = _clean_optional_form_value(payload.get("label"))
         secret = "lp_" + secrets.token_urlsafe(32)
         record = store.create_api_key(owner_id=owner_id, role=role, label=label, secret=secret)
+        _record_operation(
+            store,
+            principal,
+            action="api_key.created",
+            target_type="api_key",
+            target_id=record.key_id,
+            metadata={
+                "owner_id": owner_id,
+                "role": role,
+                "label": label,
+                "key_prefix": record.key_prefix,
+            },
+        )
         response = _api_key_payload(record)
         response["api_key"] = secret
         response["secret_notice"] = "Copy this API key now. It cannot be shown again."
         return response
 
     @app.post("/api/admin/api-keys/{key_id}/revoke")
-    def revoke_api_key(key_id: str, _: Principal = Depends(require_admin)) -> Dict[str, object]:
+    def revoke_api_key(key_id: str, principal: Principal = Depends(require_admin)) -> Dict[str, object]:
         record = store.revoke_api_key(key_id)
         if record is None:
             raise HTTPException(status_code=404, detail="API key not found or already revoked")
+        _record_operation(
+            store,
+            principal,
+            action="api_key.revoked",
+            target_type="api_key",
+            target_id=record.key_id,
+            metadata={
+                "owner_id": record.owner_id,
+                "role": record.role,
+                "label": record.label,
+                "key_prefix": record.key_prefix,
+            },
+        )
         return _api_key_payload(record)
 
     @app.get("/api/cleanup-runs")
@@ -177,7 +221,7 @@ def create_app(
     @app.post("/api/cleanup-runs", status_code=201)
     def create_cleanup_run(
         payload: dict = Body(default_factory=dict),
-        _: Principal = Depends(require_admin),
+        principal: Principal = Depends(require_admin),
     ) -> Dict[str, object]:
         older_than_days = _int_payload_value(payload, "older_than_days", default=7)
         dry_run = _bool_payload_value(payload, "dry_run", default=True)
@@ -194,6 +238,23 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _record_operation(
+            store,
+            principal,
+            action="cleanup.dry_run" if dry_run else "cleanup.deleted",
+            target_type="cleanup_run",
+            target_id=None,
+            metadata={
+                "older_than_days": older_than_days,
+                "dry_run": dry_run,
+                "matched_jobs": result.matched_jobs,
+                "deleted_jobs": result.deleted_jobs,
+                "skipped_active_jobs": result.skipped_active_jobs,
+                "removed_bytes": result.removed_bytes,
+                "matched_job_ids": list(result.matched_job_ids),
+                "deleted_job_ids": list(result.deleted_job_ids),
+            },
+        )
         return _cleanup_result_payload(result, older_than_days=older_than_days, dry_run=dry_run)
 
     @app.post("/api/jobs", status_code=201)
@@ -285,6 +346,19 @@ def create_app(
         retried_job = store.retry_failed_job(job_id)
         if retried_job is None:
             raise HTTPException(status_code=409, detail="job can no longer be retried")
+        _record_operation(
+            store,
+            principal,
+            action="job.retried",
+            target_type="job",
+            target_id=job_id,
+            metadata={
+                "owner_id": retried_job.owner_id,
+                "attempt_count": retried_job.attempt_count,
+                "source_filename": retried_job.source_filename,
+                "driving_filename": retried_job.driving_filename,
+            },
+        )
         if enqueue_jobs:
             queue.put(retried_job.job_id)
         return _job_payload(retried_job)
@@ -613,6 +687,39 @@ def _api_key_payload(record: ApiKeyRecord) -> Dict[str, object]:
         "status": record.status,
         "created_at": record.created_at,
         "revoked_at": record.revoked_at,
+    }
+
+
+def _record_operation(
+    store: JobStore,
+    principal: Principal,
+    action: str,
+    target_type: str,
+    target_id: str | None = None,
+    metadata: dict | None = None,
+) -> None:
+    store.record_operational_audit_event(
+        actor_owner_id=principal.owner_id,
+        actor_key_id=principal.key_id,
+        actor_role=principal.role,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        metadata=metadata or {},
+    )
+
+
+def _operational_audit_event_payload(event) -> Dict[str, object]:
+    return {
+        "event_id": event.event_id,
+        "actor_owner_id": event.actor_owner_id,
+        "actor_key_id": event.actor_key_id,
+        "actor_role": event.actor_role,
+        "action": event.action,
+        "target_type": event.target_type,
+        "target_id": event.target_id,
+        "metadata": event.metadata,
+        "created_at": event.created_at,
     }
 
 

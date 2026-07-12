@@ -48,6 +48,10 @@
   const cleanupDryRunButton = document.getElementById("cleanup-dry-run");
   const cleanupDeleteButton = document.getElementById("cleanup-delete");
   const refreshCleanupRunsButton = document.getElementById("refresh-cleanup-runs");
+  const operationsAuditPanel = document.getElementById("operations-audit-panel");
+  const operationsAuditList = document.getElementById("operations-audit-list");
+  const operationsAuditActionFilter = document.getElementById("operations-audit-action-filter");
+  const refreshOperationsAuditButton = document.getElementById("refresh-operations-audit");
   const sourceRules = {
     label: "Source image",
     extensions: [".jpg", ".jpeg", ".png"],
@@ -111,6 +115,8 @@
   cleanupDryRunButton.addEventListener("click", () => runCleanup(true));
   cleanupDeleteButton.addEventListener("click", () => runCleanup(false));
   refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
+  operationsAuditActionFilter.addEventListener("change", loadOperationsAuditEvents);
+  refreshOperationsAuditButton.addEventListener("click", loadOperationsAuditEvents);
   clearResultButton.addEventListener("click", clearCurrentJob);
   retryJobButton.addEventListener("click", retryCurrentJob);
 
@@ -287,6 +293,7 @@
         ownerFilterField.hidden = true;
         accessPanel.hidden = true;
         cleanupPanel.hidden = true;
+        operationsAuditPanel.hidden = true;
         return;
       }
       currentAccessProfile = payload;
@@ -297,15 +304,18 @@
       }
       accessPanel.hidden = !payload.is_admin;
       cleanupPanel.hidden = !payload.is_admin;
+      operationsAuditPanel.hidden = !payload.is_admin;
       if (payload.is_admin) {
         await loadApiKeys();
         await loadCleanupRuns();
+        await loadOperationsAuditEvents();
       }
     } catch (_) {
       currentAccessProfile = null;
       ownerFilterField.hidden = true;
       accessPanel.hidden = true;
       cleanupPanel.hidden = true;
+      operationsAuditPanel.hidden = true;
     }
   }
 
@@ -355,6 +365,7 @@
       apiKeyForm.reset();
       newKeyRoleInput.value = "user";
       await loadApiKeys();
+      await loadOperationsAuditEvents();
     } catch (error) {
       newApiKeyResult.hidden = false;
       newApiKeyResult.textContent = error.message;
@@ -429,8 +440,57 @@
       }
       details.textContent = "Revoked API key for " + payload.owner_id + ".";
       await loadApiKeys();
+      await loadOperationsAuditEvents();
     } catch (error) {
       details.textContent = error.message;
+    }
+  }
+
+  async function loadOperationsAuditEvents() {
+    try {
+      const query = new URLSearchParams({ limit: "20" });
+      const action = operationsAuditActionFilter.value.trim();
+      if (action) {
+        query.set("action", action);
+      }
+      const response = await fetch("/api/admin/audit-events?" + query.toString(), {
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Could not load operation records");
+      }
+      renderOperationsAuditEvents(payload.events || []);
+    } catch (error) {
+      operationsAuditList.textContent = error.message;
+    }
+  }
+
+  function renderOperationsAuditEvents(events) {
+    operationsAuditList.replaceChildren();
+    if (!events.length) {
+      operationsAuditList.textContent = "No operation records.";
+      return;
+    }
+
+    for (const event of events) {
+      const item = document.createElement("div");
+      item.className = "operation-row";
+      const main = document.createElement("span");
+      main.className = "job-main";
+      main.textContent = event.action + " - " + (event.target_type || "target");
+      const meta = document.createElement("span");
+      meta.className = "job-meta";
+      meta.textContent = [
+        "actor " + (event.actor_owner_id || "unknown"),
+        event.target_id ? "target " + shortHash(event.target_id) : "no target id",
+        formatTime(event.created_at),
+      ].join(" | ");
+      const metadata = document.createElement("span");
+      metadata.className = "job-meta";
+      metadata.textContent = summarizeMetadata(event.metadata);
+      item.append(main, meta, metadata);
+      operationsAuditList.appendChild(item);
     }
   }
 
@@ -475,6 +535,7 @@
       ].join("");
       await loadCleanupRuns();
       await loadJobs();
+      await loadOperationsAuditEvents();
     } catch (error) {
       details.textContent = error.message;
     } finally {
@@ -585,6 +646,7 @@
       renderJobSummary(payload);
       details.textContent = "Job " + payload.job_id + " queued for retry.";
       await loadJobs();
+      await loadOperationsAuditEvents();
       await pollJob(payload.job_id);
     } catch (error) {
       details.textContent = error.message;
@@ -905,6 +967,17 @@
 
   function shortHash(value) {
     return value ? String(value).slice(0, 12) : "Not available";
+  }
+
+  function summarizeMetadata(value) {
+    if (!value || typeof value !== "object") {
+      return "No metadata";
+    }
+    const entries = Object.entries(value).filter(([_, item]) => item !== null && item !== undefined && item !== "");
+    if (!entries.length) {
+      return "No metadata";
+    }
+    return entries.slice(0, 4).map(([key, item]) => key + ": " + String(item)).join(" | ");
   }
 
   function escapeHtml(value) {

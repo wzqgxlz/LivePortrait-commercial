@@ -70,6 +70,19 @@ class ApiKeyRecord:
     revoked_at: Optional[str]
 
 
+@dataclass(frozen=True)
+class OperationalAuditEvent:
+    event_id: int
+    actor_owner_id: Optional[str]
+    actor_key_id: Optional[str]
+    actor_role: Optional[str]
+    action: str
+    target_type: str
+    target_id: Optional[str]
+    metadata: dict
+    created_at: str
+
+
 class JobStore:
     def __init__(self, db_path: Path):
         self.db_path = db_path
@@ -294,6 +307,71 @@ class JobStore:
             return None
         return self.get_api_key(key_id)
 
+    def record_operational_audit_event(
+        self,
+        action: str,
+        target_type: str,
+        actor_owner_id: str | None = None,
+        actor_key_id: str | None = None,
+        actor_role: str | None = None,
+        target_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> OperationalAuditEvent:
+        now = _now()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO operational_audit_events (
+                    actor_owner_id, actor_key_id, actor_role, action, target_type,
+                    target_id, metadata_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    actor_owner_id,
+                    actor_key_id,
+                    actor_role,
+                    action,
+                    target_type,
+                    target_id,
+                    json.dumps(metadata or {}, sort_keys=True),
+                    now,
+                ),
+            )
+            event_id = cursor.lastrowid
+        return self.get_operational_audit_event(int(event_id))  # type: ignore[return-value]
+
+    def get_operational_audit_event(self, event_id: int) -> Optional[OperationalAuditEvent]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM operational_audit_events WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+        return _row_to_operational_audit_event(row) if row else None
+
+    def list_operational_audit_events(
+        self,
+        limit: int = 50,
+        action: str | None = None,
+        actor_owner_id: str | None = None,
+    ) -> list[OperationalAuditEvent]:
+        safe_limit = max(1, min(limit, 200))
+        clauses = []
+        values = []
+        if action is not None:
+            clauses.append("action = ?")
+            values.append(action)
+        if actor_owner_id is not None:
+            clauses.append("actor_owner_id = ?")
+            values.append(actor_owner_id)
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM operational_audit_events {where_clause} ORDER BY event_id DESC LIMIT ?",
+                (*values, safe_limit),
+            ).fetchall()
+        return [_row_to_operational_audit_event(row) for row in rows]
+
     def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
         placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
         with self._connect() as conn:
@@ -483,6 +561,33 @@ class JobStore:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS api_keys_owner_id_idx ON api_keys(owner_id)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS operational_audit_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    actor_owner_id TEXT,
+                    actor_key_id TEXT,
+                    actor_role TEXT,
+                    action TEXT NOT NULL,
+                    target_type TEXT NOT NULL,
+                    target_id TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS operational_audit_action_idx
+                ON operational_audit_events(action)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS operational_audit_actor_owner_idx
+                ON operational_audit_events(actor_owner_id)
+                """
+            )
 
     def _insert_audit_event(
         self,
@@ -563,6 +668,20 @@ def _row_to_api_key(row: sqlite3.Row) -> ApiKeyRecord:
         status=row["status"],
         created_at=row["created_at"],
         revoked_at=row["revoked_at"],
+    )
+
+
+def _row_to_operational_audit_event(row: sqlite3.Row) -> OperationalAuditEvent:
+    return OperationalAuditEvent(
+        event_id=row["event_id"],
+        actor_owner_id=row["actor_owner_id"],
+        actor_key_id=row["actor_key_id"],
+        actor_role=row["actor_role"],
+        action=row["action"],
+        target_type=row["target_type"],
+        target_id=row["target_id"],
+        metadata=json.loads(row["metadata_json"]),
+        created_at=row["created_at"],
     )
 
 

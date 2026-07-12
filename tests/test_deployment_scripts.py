@@ -155,6 +155,8 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "deploy/nginx-liveportrait-api.conf" in doc
     assert "deploy/Caddyfile.example" in doc
     assert "Reverse Proxy Or HTTPS Failure" in doc
+    assert "GET /api/admin/audit-events" in doc
+    assert "Operations Audit" in doc
 
 
 def test_deployment_acceptance_checklist_covers_evidence_and_failures():
@@ -178,6 +180,9 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "deploy/nginx-liveportrait-api.conf" in doc
     assert "deploy/Caddyfile.example" in doc
     assert "https://liveportrait.example.com" in doc
+    assert "Operations Audit" in doc
+    assert "api_key.created" in doc
+    assert "job.retried" in doc
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():

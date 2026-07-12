@@ -64,6 +64,10 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="cleanup-dry-run"' in page_response.text
         assert 'id="cleanup-delete"' in page_response.text
         assert 'id="cleanup-panel"' in page_response.text
+        assert 'id="operations-audit-panel"' in page_response.text
+        assert 'id="operations-audit-action-filter"' in page_response.text
+        assert 'id="operations-audit-list"' in page_response.text
+        assert 'id="refresh-operations-audit"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
         assert 'id="authorization-reviewer"' in page_response.text
@@ -97,6 +101,10 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "loadCleanupRuns" in script_response.text
         assert "renderCleanupRuns" in script_response.text
         assert "runCleanup" in script_response.text
+        assert "loadOperationsAuditEvents" in script_response.text
+        assert "renderOperationsAuditEvents" in script_response.text
+        assert "summarizeMetadata" in script_response.text
+        assert "/api/admin/audit-events" in script_response.text
         assert "loadAccessProfile" in script_response.text
         assert "sessionStorage" in script_response.text
         assert "createIdempotencyKey" in script_response.text
@@ -118,6 +126,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert ".access-form" in style_response.text
         assert ".api-keys-list" in style_response.text
         assert ".new-key-result" in style_response.text
+        assert ".operations-audit-list" in style_response.text
         assert style_response.status_code == 200
 
 
@@ -795,6 +804,7 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
             "/api/authorization-records/export?authorization_reference=CRM-2026-0001"
         )
         cleanup_runs_response = client.get("/api/cleanup-runs")
+        audit_events_response = client.get("/api/admin/audit-events")
         cleanup_create_response = client.post(
             "/api/cleanup-runs",
             json={"older_than_days": 7, "dry_run": True},
@@ -804,6 +814,7 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         assert export_response.status_code == 401
         assert authorization_export_response.status_code == 401
         assert cleanup_runs_response.status_code == 401
+        assert audit_events_response.status_code == 401
         assert cleanup_create_response.status_code == 401
 
 
@@ -934,6 +945,81 @@ def test_managed_api_keys_isolate_jobs_limit_active_work_and_support_revocation(
             f"/api/admin/api-keys/{alice_key_response.json()['key_id']}/revoke",
             headers=admin_headers,
         ).status_code == 404
+
+
+def test_operational_audit_records_admin_and_retry_actions(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    data_dir = tmp_path / "api-data"
+    app = create_app(
+        ApiConfig(
+            repo_root=tmp_path,
+            data_dir=data_dir,
+            api_key="bootstrap-secret",
+            max_active_jobs=10,
+            max_active_jobs_per_owner=10,
+        ),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+    admin_headers = {"x-api-key": "bootstrap-secret"}
+
+    with TestClient(app) as client:
+        key_response = client.post(
+            "/api/admin/api-keys",
+            headers=admin_headers,
+            json={"owner_id": "audited-user", "label": "Audit test"},
+        )
+        user_key = key_response.json()["api_key"]
+        key_id = key_response.json()["key_id"]
+
+        job_response = client.post(
+            "/api/jobs",
+            headers={"x-api-key": user_key},
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        job_id = job_response.json()["job_id"]
+        store = app.state.job_store
+        store.mark_running(job_id)
+        store.mark_failed(job_id, "retry audit test")
+
+        retry_response = client.post(f"/api/jobs/{job_id}/retry", headers={"x-api-key": user_key})
+        cleanup_response = client.post(
+            "/api/cleanup-runs",
+            headers=admin_headers,
+            json={"older_than_days": 7, "dry_run": True},
+        )
+        revoke_response = client.post(f"/api/admin/api-keys/{key_id}/revoke", headers=admin_headers)
+        audit_response = client.get("/api/admin/audit-events?limit=10", headers=admin_headers)
+        user_audit_response = client.get("/api/admin/audit-events", headers={"x-api-key": user_key})
+
+        assert retry_response.status_code == 202
+        assert cleanup_response.status_code == 201
+        assert revoke_response.status_code == 200
+        assert user_audit_response.status_code == 401
+
+        events = audit_response.json()["events"]
+        actions = [event["action"] for event in events]
+        assert actions == [
+            "api_key.revoked",
+            "cleanup.dry_run",
+            "job.retried",
+            "api_key.created",
+        ]
+        created_event = next(event for event in events if event["action"] == "api_key.created")
+        retry_event = next(event for event in events if event["action"] == "job.retried")
+        cleanup_event = next(event for event in events if event["action"] == "cleanup.dry_run")
+        assert user_key not in str(events)
+        assert created_event["metadata"]["key_prefix"] == key_response.json()["key_prefix"]
+        assert created_event["metadata"]["owner_id"] == "audited-user"
+        assert retry_event["actor_owner_id"] == "audited-user"
+        assert retry_event["target_id"] == job_id
+        assert cleanup_event["metadata"]["dry_run"] is True
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

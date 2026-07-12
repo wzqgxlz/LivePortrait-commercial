@@ -226,6 +226,20 @@
           </div>
           <div id="cleanup-runs-list" class="cleanup-runs-list">No cleanup records.</div>
         </div>
+
+        <div id="operations-audit-panel" class="history-panel" aria-labelledby="operations-audit-title" hidden>
+          <div class="history-header">
+            <h2 id="operations-audit-title">Operations audit</h2>
+            <div class="history-tools">
+              <label class="compact-field compact-field-wide">
+                <span>Action</span>
+                <input id="operations-audit-action-filter" type="text" autocomplete="off" placeholder="api_key.created" />
+              </label>
+              <button id="refresh-operations-audit" class="secondary-button" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="operations-audit-list" class="operations-audit-list">No operation records.</div>
+        </div>
       </section>
     </main>
 

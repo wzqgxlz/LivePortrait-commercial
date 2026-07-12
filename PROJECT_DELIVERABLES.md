@@ -34,6 +34,8 @@ wrapper:
   ownership isolation, and per-owner active-job limits.
 - Browser-based administrator panel for managed API Key issuance/revocation and
   owner-filtered job review.
+- Operational audit events for managed Key creation/revocation, cleanup runs,
+  and failed-job retries.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
   pending work, and interruption audit events.
 - Source image authorization confirmation.
@@ -66,10 +68,10 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| FastAPI application | `src/api/app.py` | Serves managed API Key, owner-isolated job, idempotent submit, retry, restart-recovery, audit, export, cleanup, and health endpoints. |
+| FastAPI application | `src/api/app.py` | Serves managed API Key, owner-isolated job, idempotent submit, retry, restart-recovery, job audit, operational audit, export, cleanup, and health endpoints. |
 | API configuration | `src/api/config.py` | Centralizes data directory, Python/GPU settings, bootstrap API Key, upload and queue limits, per-owner active-job limit, and retry limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands only for pending jobs, avoiding stale queue re-execution. |
-| SQLite job store | `src/api/storage.py` | Stores jobs, ownership, idempotency Keys, execution attempts, recovery/retry audit events, hashes, authorization metadata, and hashed managed API Key records. |
+| SQLite job store | `src/api/storage.py` | Stores jobs, ownership, idempotency Keys, execution attempts, recovery/retry audit events, operational audit events, hashes, authorization metadata, and hashed managed API Key records. |
 | Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, appends cleanup run records, and reads recent cleanup records for operations review. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
@@ -77,9 +79,9 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator API Key management, administrator-only cleanup controls, cleanup history, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, generated idempotency Keys, failed-job retry, identity-aware UI, polling, downloads, exports, owner-isolated recent jobs, administrator Key issuance/revocation, owner filtering, and administrator cleanup controls. |
-| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, access-management rows, cleanup run rows, and job detail styling. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator API Key management, administrator-only cleanup controls, cleanup history, operations audit, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, generated idempotency Keys, failed-job retry, identity-aware UI, polling, downloads, exports, owner-isolated recent jobs, administrator Key issuance/revocation, owner filtering, operations audit refresh, and administrator cleanup controls. |
+| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, access-management rows, cleanup run rows, operations audit rows, and job detail styling. |
 
 ## Frontend Features Delivered
 
@@ -89,6 +91,8 @@ wrapper:
 - Administrator Key issuance/revocation API with database hashes only.
 - Administrator Access management panel for issuing and revoking personal Keys
   without exposing previously issued secrets.
+- Administrator Operations audit panel for reviewing API Key, cleanup, and retry
+  actions.
 - User/admin roles, task ownership isolation, and per-owner active-job limit.
 - Idempotent submit, attempt count, failed-job retry, and restart interruption handling.
 - Source authorization checkbox before submission.
@@ -173,7 +177,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-58 passed
+60 passed
 Commercial safety scan passed.
 ```
 
@@ -181,6 +185,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `3dc248b` | `chore: add https reverse proxy templates` |
 | `c7c5382` | `feat: add browser access management` |
 | `a46e366` | `feat: add resilient job retry handling` |
 | `3671876` | `feat: add managed api key access control` |
