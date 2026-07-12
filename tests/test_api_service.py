@@ -49,6 +49,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="cleanup-older-than-days"' in page_response.text
         assert 'id="cleanup-dry-run"' in page_response.text
         assert 'id="cleanup-delete"' in page_response.text
+        assert 'id="cleanup-panel"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
         assert 'id="authorization-reviewer"' in page_response.text
@@ -73,6 +74,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "loadCleanupRuns" in script_response.text
         assert "renderCleanupRuns" in script_response.text
         assert "runCleanup" in script_response.text
+        assert "loadAccessProfile" in script_response.text
+        assert "sessionStorage" in script_response.text
         assert "status=" in script_response.text
         assert "authorization_reference=" in script_response.text
         assert "loadAuditExport" in script_response.text
@@ -652,6 +655,135 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         assert authorization_export_response.status_code == 401
         assert cleanup_runs_response.status_code == 401
         assert cleanup_create_response.status_code == 401
+
+
+def test_managed_api_keys_isolate_jobs_limit_active_work_and_support_revocation(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(
+            repo_root=tmp_path,
+            data_dir=tmp_path / "api-data",
+            api_key="bootstrap-secret",
+            max_active_jobs=5,
+            max_active_jobs_per_owner=1,
+        ),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+    admin_headers = {"x-api-key": "bootstrap-secret"}
+
+    with TestClient(app) as client:
+        reserved_owner_response = client.post(
+            "/api/admin/api-keys",
+            headers=admin_headers,
+            json={"owner_id": "bootstrap-admin"},
+        )
+        assert reserved_owner_response.status_code == 400
+
+        alice_key_response = client.post(
+            "/api/admin/api-keys",
+            headers=admin_headers,
+            json={"owner_id": "alice", "label": "Alice pilot"},
+        )
+        bob_key_response = client.post(
+            "/api/admin/api-keys",
+            headers=admin_headers,
+            json={"owner_id": "bob", "label": "Bob pilot"},
+        )
+        assert alice_key_response.status_code == 201
+        assert bob_key_response.status_code == 201
+        alice_key = alice_key_response.json()["api_key"]
+        bob_key = bob_key_response.json()["api_key"]
+        assert alice_key.startswith("lp_")
+        assert alice_key_response.json()["key_prefix"] == alice_key[:12]
+
+        alice_identity = client.get("/api/whoami", headers={"x-api-key": alice_key})
+        admin_identity = client.get("/api/whoami", headers=admin_headers)
+        assert alice_identity.json() == {"owner_id": "alice", "role": "user", "is_admin": False}
+        assert admin_identity.json() == {
+            "owner_id": "bootstrap-admin",
+            "role": "admin",
+            "is_admin": True,
+        }
+
+        listed_keys = client.get("/api/admin/api-keys", headers=admin_headers)
+        assert listed_keys.status_code == 200
+        assert alice_key not in listed_keys.text
+        assert {item["owner_id"] for item in listed_keys.json()["api_keys"]} == {"alice", "bob"}
+        with sqlite3.connect(app.state.job_store.db_path) as conn:
+            digest = conn.execute(
+                "SELECT key_digest FROM api_keys WHERE key_id = ?",
+                (alice_key_response.json()["key_id"],),
+            ).fetchone()[0]
+        assert digest != alice_key
+
+        alice_job = client.post(
+            "/api/jobs",
+            headers={"x-api-key": alice_key},
+            data={"consent_confirmed": "true", "authorization_reference": "SHARED-REF"},
+            files={
+                "source": ("alice-source.jpg", b"alice-source", "image/jpeg"),
+                "driving": ("alice-driving.jpg", b"alice-driving", "image/jpeg"),
+            },
+        )
+        bob_job = client.post(
+            "/api/jobs",
+            headers={"x-api-key": bob_key},
+            data={"consent_confirmed": "true", "authorization_reference": "SHARED-REF"},
+            files={
+                "source": ("bob-source.jpg", b"bob-source", "image/jpeg"),
+                "driving": ("bob-driving.jpg", b"bob-driving", "image/jpeg"),
+            },
+        )
+        assert alice_job.status_code == 201
+        assert bob_job.status_code == 201
+        assert alice_job.json()["owner_id"] == "alice"
+
+        alice_second_job = client.post(
+            "/api/jobs",
+            headers={"x-api-key": alice_key},
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("alice-source-2.jpg", b"alice-source-2", "image/jpeg"),
+                "driving": ("alice-driving-2.jpg", b"alice-driving-2", "image/jpeg"),
+            },
+        )
+        assert alice_second_job.status_code == 429
+        assert "active job limit" in alice_second_job.json()["detail"]
+
+        alice_jobs = client.get("/api/jobs", headers={"x-api-key": alice_key})
+        alice_export = client.get(
+            "/api/authorization-records/export?authorization_reference=SHARED-REF",
+            headers={"x-api-key": alice_key},
+        )
+        alice_cannot_read_bob = client.get(
+            f"/api/jobs/{bob_job.json()['job_id']}",
+            headers={"x-api-key": alice_key},
+        )
+        alice_cannot_cleanup = client.get("/api/cleanup-runs", headers={"x-api-key": alice_key})
+        alice_cannot_list_keys = client.get("/api/admin/api-keys", headers={"x-api-key": alice_key})
+        assert [job["job_id"] for job in alice_jobs.json()["jobs"]] == [alice_job.json()["job_id"]]
+        assert [item["job"]["job_id"] for item in alice_export.json()["jobs"]] == [alice_job.json()["job_id"]]
+        assert alice_cannot_read_bob.status_code == 404
+        assert alice_cannot_cleanup.status_code == 403
+        assert alice_cannot_list_keys.status_code == 403
+
+        admin_jobs = client.get("/api/jobs?owner_id=bob", headers=admin_headers)
+        assert [job["job_id"] for job in admin_jobs.json()["jobs"]] == [bob_job.json()["job_id"]]
+
+        revoke_response = client.post(
+            f"/api/admin/api-keys/{alice_key_response.json()['key_id']}/revoke",
+            headers=admin_headers,
+        )
+        assert revoke_response.status_code == 200
+        assert revoke_response.json()["status"] == "revoked"
+        assert client.get("/api/jobs", headers={"x-api-key": alice_key}).status_code == 401
+        assert client.post(
+            f"/api/admin/api-keys/{alice_key_response.json()['key_id']}/revoke",
+            headers=admin_headers,
+        ).status_code == 404
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

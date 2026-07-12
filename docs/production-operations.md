@@ -32,6 +32,9 @@ python scripts/commercial_safety_scan.py
 - Set conservative limits before load testing:
   - `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES=209715200`
   - `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS=20`
+  - `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER=3`
+- Keep `LIVEPORTRAIT_API_KEY` as the bootstrap administrator Key; issue each
+  tester/customer a separate personal Key instead of sharing it.
 - Start the API behind HTTPS before any public network access.
 
 ### Verification
@@ -68,6 +71,17 @@ Use these checks while the MVP is serving testers.
 - Confirm the API Key still protects job endpoints.
 - Check available disk space for `LIVEPORTRAIT_API_DATA_DIR`.
 - Check GPU memory before raising `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS`.
+
+### Access Management
+
+- Use `GET /api/admin/api-keys` with the bootstrap administrator Key to review
+  issued personal Keys without exposing their secret values.
+- Issue a separate `role=user` Key for each customer, tester, or integration.
+- Revoke a Key with `POST /api/admin/api-keys/{key_id}/revoke` as soon as it is
+  no longer needed or may have been exposed.
+- Confirm a user Key can access only its own jobs through `GET /api/whoami` and
+  `GET /api/jobs`.
+- Keep cleanup and cross-customer support work on an administrator Key.
 
 ### Job Review
 
@@ -183,7 +197,9 @@ Use this lightweight flow for MVP incidents.
 ### Unauthorized Or Suspicious Use
 
 - Stop sharing the current API Key.
-- Rotate `LIVEPORTRAIT_API_KEY`.
+- Revoke the exposed personal Key through `POST /api/admin/api-keys/{key_id}/revoke`.
+- Rotate `LIVEPORTRAIT_API_KEY` only when the bootstrap administrator Key is
+  exposed, then restart the service.
 - Preserve the related job export from `GET /api/jobs/{job_id}/export`.
 - Preserve `cleanup-runs.jsonl` and service logs.
 - Review the source authorization confirmation and policy version in the export.
@@ -215,9 +231,11 @@ Use this lightweight flow for MVP incidents.
 
 ## MVP Limitations
 
-- This is not yet a multi-user admin console.
+- API Key issuance/revocation is available through administrator endpoints, but
+  there is not yet a browser-based multi-user admin console or account login.
 - SQLite and local disk are suitable for MVP/single-node operation, not
   multi-node production.
-- API Key auth is coarse-grained. User accounts, roles, and per-customer
-  authorization records are future work.
+- Personal API Keys provide `user` and `admin` roles plus task isolation, but
+  full user accounts, billing, and per-customer authorization records are
+  future work.
 - Content moderation and formal consent-record workflows are future work.

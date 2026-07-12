@@ -30,6 +30,7 @@
   const refreshJobsButton = document.getElementById("refresh-jobs");
   const exportAuthorizationRecordButton = document.getElementById("export-authorization-record");
   const cleanupRunsList = document.getElementById("cleanup-runs-list");
+  const cleanupPanel = document.getElementById("cleanup-panel");
   const cleanupOlderThanDaysInput = document.getElementById("cleanup-older-than-days");
   const cleanupDryRunButton = document.getElementById("cleanup-dry-run");
   const cleanupDeleteButton = document.getElementById("cleanup-delete");
@@ -58,19 +59,19 @@
   let currentAuthorizationExportUrl = null;
   let maxUploadBytes = null;
 
-  apiKeyInput.value = localStorage.getItem("liveportrait_api_key") || "";
+  apiKeyInput.value = sessionStorage.getItem("liveportrait_api_key") || "";
   updateAuthHint();
   apiKeyInput.addEventListener("change", () => {
-    localStorage.setItem("liveportrait_api_key", apiKeyInput.value.trim());
+    sessionStorage.setItem("liveportrait_api_key", apiKeyInput.value.trim());
     updateAuthHint();
     loadJobs();
-    loadCleanupRuns();
+    loadAccessProfile();
   });
 
   renderEmptyState();
   checkHealth();
   loadJobs();
-  loadCleanupRuns();
+  loadAccessProfile();
   form.addEventListener("submit", createJob);
   sourceInput.addEventListener("change", () => {
     renderFileSummary(sourceInput, sourceSummary);
@@ -246,6 +247,23 @@
     }
   }
 
+  async function loadAccessProfile() {
+    try {
+      const response = await fetch("/api/whoami", { headers: authHeaders() });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        cleanupPanel.hidden = true;
+        return;
+      }
+      cleanupPanel.hidden = !payload.is_admin;
+      if (payload.is_admin) {
+        await loadCleanupRuns();
+      }
+    } catch (_) {
+      cleanupPanel.hidden = true;
+    }
+  }
+
   async function runCleanup(dryRun) {
     const olderThanDays = Number(cleanupOlderThanDaysInput.value);
     if (!Number.isInteger(olderThanDays) || olderThanDays < 1) {
@@ -413,7 +431,7 @@
 
   function updateAuthHint() {
     if (apiKeyInput.value.trim()) {
-      authHint.textContent = "API Key saved in this browser and sent with job requests.";
+      authHint.textContent = "Personal access key is kept only for this browser session and sent with job requests.";
       authHint.dataset.state = "ready";
       return;
     }

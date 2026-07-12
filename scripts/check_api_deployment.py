@@ -116,9 +116,13 @@ def _check_cleanup_create_auth_guard(base_url: str) -> tuple[bool, str]:
 
 
 def _check_authenticated_request(base_url: str, api_key: str) -> tuple[bool, str]:
-    result = _get(f"{base_url}/api/jobs/not-found", headers={"x-api-key": api_key})
+    headers = {"x-api-key": api_key}
+    identity_result = _get(f"{base_url}/api/whoami", headers=headers)
+    if identity_result.status != 200:
+        return False, f"Authenticated identity endpoint check returned HTTP {identity_result.status}."
+    result = _get(f"{base_url}/api/jobs/not-found", headers=headers)
     if result.status == 404:
-        return True, "Authenticated request reached the jobs endpoint."
+        return True, "Authenticated request reached the identity and jobs endpoints."
     return False, f"Authenticated jobs endpoint check returned HTTP {result.status}."
 
 

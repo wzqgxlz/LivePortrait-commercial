@@ -28,19 +28,23 @@ $env:LIVEPORTRAIT_API_FORCE_CPU = "0"
 $env:LIVEPORTRAIT_API_KEY = "replace-with-a-long-random-secret"
 $env:LIVEPORTRAIT_API_MAX_UPLOAD_BYTES = "209715200"
 $env:LIVEPORTRAIT_API_MAX_ACTIVE_JOBS = "20"
+$env:LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER = "3"
 ```
 
 Set `LIVEPORTRAIT_API_FORCE_CPU=1` only for local smoke tests without an NVIDIA
 GPU.
 
-Set `LIVEPORTRAIT_API_KEY` before exposing the service to any network. When it
-is unset, the API stays open for local development and smoke tests. When it is
-set, every job endpoint requires the same value in the `x-api-key` header.
+Set `LIVEPORTRAIT_API_KEY` before exposing the service to any network. It is the
+bootstrap administrator Key: retain it only in server configuration. Use it to
+issue personal access Keys for users. When it is unset and no managed Key has
+been issued, the API stays open for local development and smoke tests. Once a
+managed Key exists, every protected endpoint requires a valid `x-api-key`.
 
 `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` limits each uploaded file. The default is
 209,715,200 bytes, about 200 MB. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` limits the
 number of `pending` plus `running` jobs. The default is 20; when the queue is
-full, `POST /api/jobs` returns `429`.
+full, `POST /api/jobs` returns `429`. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER`
+defaults to three and limits active jobs for each personal Key owner.
 
 ## Authentication
 
@@ -55,6 +59,10 @@ Protected endpoints:
 - `GET /api/authorization-records/export`
 - `GET /api/cleanup-runs`
 - `POST /api/cleanup-runs`
+- `GET /api/whoami`
+- `GET /api/admin/api-keys` (administrator only)
+- `POST /api/admin/api-keys` (administrator only)
+- `POST /api/admin/api-keys/{key_id}/revoke` (administrator only)
 
 Public endpoint:
 
@@ -70,8 +78,9 @@ curl.exe -X POST "http://127.0.0.1:8000/api/jobs" `
   -F "consent_confirmed=true"
 ```
 
-The frontend page stores the API Key in the browser's local storage and sends it
-as `x-api-key` when creating jobs, polling status, and downloading results.
+The frontend page keeps the personal access Key only in the browser session and
+sends it as `x-api-key` when creating jobs, polling status, and downloading
+results. Closing the browser session clears it.
 It also shows selected file names and sizes, checks file type/size before
 submission, displays queue-limit or upload-limit errors inline, and shows a
 job details panel with authorization metadata, timestamps, input/output hashes,
@@ -81,7 +90,38 @@ status, and authorization reference, then export a JSON package for all recent
 jobs attached to one authorization reference. The page also includes API Key
 guidance, an empty state for first-time users, a completion panel after
 successful generation, and a Cleanup runs panel for dry-run previews, confirmed
-cleanup, and recent retention activity.
+cleanup, and recent retention activity. The cleanup panel is visible only to an
+administrator Key.
+
+### Managed API Keys And Task Isolation
+
+Use the bootstrap administrator Key to issue a personal Key. The raw Key appears
+only in the create response; the database stores only a SHA-256 digest and a
+short non-secret prefix.
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/admin/api-keys" `
+  -H "x-api-key: <bootstrap-admin-key>" `
+  -H "Content-Type: application/json" `
+  -d '{"owner_id":"customer-001","label":"Pilot access","role":"user"}'
+```
+
+Users with role `user` can create, list, download, audit, and export only jobs
+owned by their `owner_id`. They cannot inspect another user's job even when they
+know its ID or authorization reference. Administrators can see all jobs, filter
+by `owner_id`, manage Keys, and run cleanup.
+
+List Keys without exposing secrets:
+
+```http
+GET /api/admin/api-keys
+```
+
+Revoke a lost or leaked personal Key immediately:
+
+```http
+POST /api/admin/api-keys/{key_id}/revoke
+```
 
 ## Endpoints
 

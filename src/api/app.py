@@ -3,6 +3,7 @@
 import shutil
 import secrets
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from queue import Queue
@@ -24,6 +25,7 @@ from .storage import (
     PENDING,
     RUNNING,
     SUCCEEDED,
+    ApiKeyRecord,
     JobRecord,
     JobStore,
 )
@@ -42,6 +44,19 @@ DRIVING_CONTENT_TYPES = {
 STATIC_DIR = Path(__file__).with_name("static")
 VALID_JOB_STATUSES = {PENDING, RUNNING, SUCCEEDED, FAILED}
 VALID_AUTHORIZATION_STATUSES = {"self_confirmed", "approved", "needs_review"}
+VALID_API_KEY_ROLES = {"user", "admin"}
+RESERVED_OWNER_IDS = {"bootstrap-admin", "local-development"}
+
+
+@dataclass(frozen=True)
+class Principal:
+    owner_id: str
+    role: str
+    key_id: str | None
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
 
 
 def create_app(
@@ -62,11 +77,25 @@ def create_app(
     if run_startup_checks:
         assert_commercial_safe_environment(cfg.repo_root)
 
-    def require_api_key(x_api_key: str | None = Header(default=None, alias="x-api-key")) -> None:
-        if cfg.api_key is None:
-            return
-        if x_api_key is None or not secrets.compare_digest(x_api_key, cfg.api_key):
-            raise HTTPException(status_code=401, detail="invalid API key")
+    def require_principal(
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> Principal:
+        if x_api_key and cfg.api_key and secrets.compare_digest(x_api_key, cfg.api_key):
+            return Principal(owner_id="bootstrap-admin", role="admin", key_id=None)
+        if x_api_key:
+            record = store.get_active_api_key(x_api_key)
+            if record is not None:
+                return Principal(owner_id=record.owner_id, role=record.role, key_id=record.key_id)
+        if cfg.api_key is None and not store.has_api_keys():
+            # Preserve the intentionally open local-development mode until the
+            # first managed key is issued.
+            return Principal(owner_id="local-development", role="admin", key_id=None)
+        raise HTTPException(status_code=401, detail="invalid API key")
+
+    def require_admin(principal: Principal = Depends(require_principal)) -> Principal:
+        if not principal.is_admin:
+            raise HTTPException(status_code=403, detail="administrator API key is required")
+        return principal
 
     if enqueue_jobs:
         worker = threading.Thread(target=_worker_loop, args=(queue, store, runner), daemon=True)
@@ -85,12 +114,48 @@ def create_app(
             "status": "ok",
             "max_upload_bytes": cfg.max_upload_bytes,
             "max_active_jobs": cfg.max_active_jobs,
+            "max_active_jobs_per_owner": cfg.max_active_jobs_per_owner,
+            "authentication_required": cfg.api_key is not None or store.has_api_keys(),
         }
+
+    @app.get("/api/admin/api-keys")
+    def list_api_keys(_: Principal = Depends(require_admin)) -> Dict[str, object]:
+        return {"api_keys": [_api_key_payload(record) for record in store.list_api_keys()]}
+
+    @app.get("/api/whoami")
+    def whoami(principal: Principal = Depends(require_principal)) -> Dict[str, object]:
+        return {
+            "owner_id": principal.owner_id,
+            "role": principal.role,
+            "is_admin": principal.is_admin,
+        }
+
+    @app.post("/api/admin/api-keys", status_code=201)
+    def create_api_key(
+        payload: dict = Body(default_factory=dict),
+        _: Principal = Depends(require_admin),
+    ) -> Dict[str, object]:
+        owner_id = _required_owner_id(payload.get("owner_id"))
+        role = _validate_api_key_role(payload.get("role", "user"))
+        label = _clean_optional_form_value(payload.get("label"))
+        secret = "lp_" + secrets.token_urlsafe(32)
+        record = store.create_api_key(owner_id=owner_id, role=role, label=label, secret=secret)
+        response = _api_key_payload(record)
+        response["api_key"] = secret
+        response["secret_notice"] = "Copy this API key now. It cannot be shown again."
+        return response
+
+    @app.post("/api/admin/api-keys/{key_id}/revoke")
+    def revoke_api_key(key_id: str, _: Principal = Depends(require_admin)) -> Dict[str, object]:
+        record = store.revoke_api_key(key_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="API key not found or already revoked")
+        return _api_key_payload(record)
 
     @app.get("/api/cleanup-runs")
     def get_cleanup_runs(
         limit: int = Query(20, ge=1, le=100),
-        _: None = Depends(require_api_key),
+        _: Principal = Depends(require_admin),
     ) -> Dict[str, object]:
         record_path = cfg.resolved_data_dir / "cleanup-runs.jsonl"
         return {
@@ -101,7 +166,7 @@ def create_app(
     @app.post("/api/cleanup-runs", status_code=201)
     def create_cleanup_run(
         payload: dict = Body(default_factory=dict),
-        _: None = Depends(require_api_key),
+        _: Principal = Depends(require_admin),
     ) -> Dict[str, object]:
         older_than_days = _int_payload_value(payload, "older_than_days", default=7)
         dry_run = _bool_payload_value(payload, "dry_run", default=True)
@@ -129,7 +194,7 @@ def create_app(
         authorization_reference: str | None = Form(None),
         authorization_reviewer: str | None = Form(None),
         authorization_status: str = Form(DEFAULT_AUTHORIZATION_STATUS),
-        _: None = Depends(require_api_key),
+        principal: Principal = Depends(require_principal),
     ) -> Dict[str, object]:
         _validate_consent(consent_confirmed)
         authorization_status = _validate_authorization_status(authorization_status)
@@ -138,7 +203,12 @@ def create_app(
         authorization_reviewer = _clean_optional_form_value(authorization_reviewer)
         _validate_upload(source, SOURCE_CONTENT_TYPES, "source")
         _validate_upload(driving, DRIVING_CONTENT_TYPES, "driving")
-        _validate_capacity(store, cfg.max_active_jobs)
+        _validate_capacity(
+            store,
+            max_active_jobs=cfg.max_active_jobs,
+            max_active_jobs_per_owner=cfg.max_active_jobs_per_owner,
+            owner_id=principal.owner_id,
+        )
 
         job_id = _new_job_id_hint()
         job_dir = cfg.jobs_dir / job_id
@@ -163,6 +233,8 @@ def create_app(
             authorization_reference=authorization_reference,
             authorization_reviewer=authorization_reviewer,
             authorization_status=authorization_status,
+            owner_id=principal.owner_id,
+            created_by_key_id=principal.key_id,
         )
         if enqueue_jobs:
             queue.put(job.job_id)
@@ -174,11 +246,15 @@ def create_app(
         status: str | None = Query(default=None),
         authorization_reference: str | None = Query(default=None),
         authorization_status: str | None = Query(default=None),
-        _: None = Depends(require_api_key),
+        owner_id: str | None = Query(default=None),
+        principal: Principal = Depends(require_principal),
     ) -> Dict[str, object]:
         _validate_job_status(status)
         authorization_reference = _clean_optional_form_value(authorization_reference)
         authorization_status = _validate_optional_authorization_status(authorization_status)
+        requested_owner_id = _clean_optional_form_value(owner_id)
+        if requested_owner_id is not None and not principal.is_admin:
+            raise HTTPException(status_code=403, detail="administrator API key is required to filter by owner")
         return {
             "jobs": [
                 _job_payload(job)
@@ -187,6 +263,7 @@ def create_app(
                     status=status,
                     authorization_reference=authorization_reference,
                     authorization_status=authorization_status,
+                    owner_id=requested_owner_id if principal.is_admin else principal.owner_id,
                 )
             ]
         }
@@ -194,12 +271,16 @@ def create_app(
     @app.get("/api/authorization-records/export")
     def export_authorization_record(
         authorization_reference: str = Query(...),
-        _: None = Depends(require_api_key),
+        principal: Principal = Depends(require_principal),
     ) -> JSONResponse:
         authorization_reference = _clean_optional_form_value(authorization_reference)
         if authorization_reference is None:
             raise HTTPException(status_code=400, detail="authorization_reference is required")
-        jobs = store.list_recent_jobs(limit=100, authorization_reference=authorization_reference)
+        jobs = store.list_recent_jobs(
+            limit=100,
+            authorization_reference=authorization_reference,
+            owner_id=None if principal.is_admin else principal.owner_id,
+        )
         if not jobs:
             raise HTTPException(status_code=404, detail="authorization record not found")
         payload = {
@@ -226,17 +307,16 @@ def create_app(
         )
 
     @app.get("/api/jobs/{job_id}")
-    def get_job(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
-        job = store.get_job(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="job not found")
+    def get_job(
+        job_id: str,
+        principal: Principal = Depends(require_principal),
+    ) -> Dict[str, object]:
+        job = _get_visible_job(store, job_id, principal)
         return _job_payload(job)
 
     @app.get("/api/jobs/{job_id}/result")
-    def get_result(job_id: str, _: None = Depends(require_api_key)):
-        job = store.get_job(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="job not found")
+    def get_result(job_id: str, principal: Principal = Depends(require_principal)):
+        job = _get_visible_job(store, job_id, principal)
         if job.status != SUCCEEDED or job.result_path is None:
             raise HTTPException(status_code=409, detail=f"job is {job.status}")
         if not job.result_path.exists():
@@ -244,10 +324,11 @@ def create_app(
         return FileResponse(job.result_path)
 
     @app.get("/api/jobs/{job_id}/audit")
-    def get_job_audit(job_id: str, _: None = Depends(require_api_key)) -> Dict[str, object]:
-        job = store.get_job(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="job not found")
+    def get_job_audit(
+        job_id: str,
+        principal: Principal = Depends(require_principal),
+    ) -> Dict[str, object]:
+        job = _get_visible_job(store, job_id, principal)
         events = store.list_audit_events(job_id)
         return {
             "job_id": job_id,
@@ -263,10 +344,11 @@ def create_app(
         }
 
     @app.get("/api/jobs/{job_id}/export")
-    def export_job_audit(job_id: str, _: None = Depends(require_api_key)) -> JSONResponse:
-        job = store.get_job(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="job not found")
+    def export_job_audit(
+        job_id: str,
+        principal: Principal = Depends(require_principal),
+    ) -> JSONResponse:
+        job = _get_visible_job(store, job_id, principal)
         events = store.list_audit_events(job_id)
         payload = {
             "export_version": "liveportrait-audit-export-v1",
@@ -320,13 +402,23 @@ def _validate_upload(
         )
 
 
-def _validate_capacity(store: JobStore, max_active_jobs: int) -> None:
+def _validate_capacity(
+    store: JobStore,
+    max_active_jobs: int,
+    max_active_jobs_per_owner: int,
+    owner_id: str,
+) -> None:
     if max_active_jobs <= 0:
-        return
-    if store.count_active_jobs() >= max_active_jobs:
+        pass
+    elif store.count_active_jobs() >= max_active_jobs:
         raise HTTPException(
             status_code=429,
             detail="job queue is full; retry after existing jobs finish",
+        )
+    if max_active_jobs_per_owner > 0 and store.count_active_jobs(owner_id=owner_id) >= max_active_jobs_per_owner:
+        raise HTTPException(
+            status_code=429,
+            detail="your active job limit is reached; retry after an existing job finishes",
         )
 
 
@@ -366,6 +458,22 @@ def _clean_optional_form_value(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _required_owner_id(value: object) -> str:
+    owner_id = _clean_optional_form_value(value if isinstance(value, str) else None)
+    if owner_id is None or len(owner_id) > 120:
+        raise HTTPException(status_code=400, detail="owner_id is required and must be at most 120 characters")
+    if owner_id in RESERVED_OWNER_IDS:
+        raise HTTPException(status_code=400, detail="owner_id is reserved for system use")
+    return owner_id
+
+
+def _validate_api_key_role(value: object) -> str:
+    role = str(value or "user").strip().lower()
+    if role not in VALID_API_KEY_ROLES:
+        raise HTTPException(status_code=400, detail=f"unsupported API key role: {value}")
+    return role
 
 
 def _int_payload_value(payload: dict, key: str, default: int) -> int:
@@ -422,6 +530,7 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
         "authorization_reference": job.authorization_reference,
         "authorization_reviewer": job.authorization_reviewer,
         "authorization_status": job.authorization_status,
+        "owner_id": job.owner_id,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }
@@ -430,6 +539,26 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
     if job.error_message:
         payload["error_message"] = job.error_message
     return payload
+
+
+def _api_key_payload(record: ApiKeyRecord) -> Dict[str, object]:
+    return {
+        "key_id": record.key_id,
+        "owner_id": record.owner_id,
+        "role": record.role,
+        "label": record.label,
+        "key_prefix": record.key_prefix,
+        "status": record.status,
+        "created_at": record.created_at,
+        "revoked_at": record.revoked_at,
+    }
+
+
+def _get_visible_job(store: JobStore, job_id: str, principal: Principal) -> JobRecord:
+    job = store.get_job(job_id)
+    if job is None or (not principal.is_admin and job.owner_id != principal.owner_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    return job
 
 
 def _audit_event_payload(event) -> Dict[str, object]:

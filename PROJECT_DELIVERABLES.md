@@ -30,6 +30,8 @@ wrapper:
 - Minimal FastAPI job service.
 - Minimal browser upload frontend.
 - API Key protection.
+- Managed personal API Keys with administrator issue/revoke operations, task
+  ownership isolation, and per-owner active-job limits.
 - Source image authorization confirmation.
 - Lightweight authorization metadata capture for basis, reference, reviewer,
   and review status.
@@ -59,10 +61,10 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for job creation, status, result, audit, single-job export, authorization-reference export, cleanup run history/action, and health checks. |
-| API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, API Key, upload limit, and active job limit. |
+| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for managed API Key issue/revoke, authenticated identity, owner-isolated jobs, status, result, audit, exports, cleanup operations, and health checks. |
+| API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, bootstrap API Key, upload limit, global active-job limit, and per-owner active-job limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
-| SQLite job store | `src/api/storage.py` | Stores jobs, statuses, hashes, authorization confirmation, lightweight authorization metadata, audit events, output metadata, and recent-job authorization filters. |
+| SQLite job store | `src/api/storage.py` | Stores jobs, ownership, statuses, hashes, authorization metadata, audit events, output metadata, and hashed managed API Key records. |
 | Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, appends cleanup run records, and reads recent cleanup records for operations review. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
@@ -70,15 +72,17 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for API Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, cleanup dry-run/delete controls, cleanup run history, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles API Key storage, client-side upload validation, job submission, polling, result download, audit export, recent jobs, authorization filters, grouped authorization export, cleanup dry-run/delete requests, cleanup run history, and authorization-aware job detail rendering. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator-only cleanup controls, cleanup history, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, client-side upload validation, identity-aware UI, job submission, polling, result download, exports, owner-isolated recent jobs, and administrator cleanup controls. |
 | Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, cleanup run rows, and job detail styling. |
 
 ## Frontend Features Delivered
 
 - Source image upload: `.jpg`, `.jpeg`, `.png`.
 - Driving upload: `.jpg`, `.jpeg`, `.png`, `.mp4`, `.pkl`.
-- API Key stored in browser local storage.
+- Personal API Key stored only for the current browser session.
+- Administrator Key issuance/revocation API with database hashes only.
+- User/admin roles, task ownership isolation, and per-owner active-job limit.
 - Source authorization checkbox before submission.
 - Optional authorization metadata fields for basis, reference, reviewer, and
   review status.
@@ -166,6 +170,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `bc9dca9` | `docs: expand deployment acceptance checklist` |
 | `0c492d4` | `chore: add docker api deployment` |
 | `3e4b3f4` | `feat: add confirmed cleanup action` |
 | `52c353b` | `feat: add authorization record operations` |

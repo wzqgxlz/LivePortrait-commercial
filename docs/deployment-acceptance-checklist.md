@@ -82,6 +82,9 @@ Pass/Fail Criteria:
 - [ ] `LIVEPORTRAIT_API_DATA_DIR` points to persistent storage.
 - [ ] `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` is set.
 - [ ] `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` is set.
+- [ ] `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER` is set.
+- [ ] `LIVEPORTRAIT_API_KEY` is retained as the bootstrap administrator Key and
+  is not distributed to end users.
 - [ ] Selected deployment mode is recorded as `systemd` or `docker-compose`.
 - [ ] Only the selected deployment mode is using port `8000`.
 
@@ -223,6 +226,7 @@ Fill this table for each deployment acceptance run.
 | Data directory | |
 | Max upload bytes | |
 | Max active jobs | |
+| Max active jobs per owner | |
 | systemd unit status or Docker image ID | |
 | Service/container log excerpt saved | |
 | Deployment check result | |

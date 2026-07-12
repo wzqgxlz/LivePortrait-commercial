@@ -19,9 +19,9 @@
 
         <form id="job-form" class="job-form">
           <label class="field">
-            <span>API Key</span>
-            <input id="api-key" type="password" autocomplete="off" placeholder="Optional for local testing" />
-            <span id="auth-hint" class="auth-hint">Local testing may not require a key. Deployed services usually do.</span>
+            <span>Personal access key</span>
+            <input id="api-key" type="password" autocomplete="off" placeholder="Required on deployed services" />
+            <span id="auth-hint" class="auth-hint">Local testing may not require a key. Deployed services use a personal access key.</span>
           </label>
 
           <div class="upload-grid">
@@ -169,7 +169,7 @@
           <div id="jobs-list" class="jobs-list">No recent jobs.</div>
         </div>
 
-        <div class="history-panel" aria-labelledby="cleanup-runs-title">
+        <div id="cleanup-panel" class="history-panel" aria-labelledby="cleanup-runs-title">
           <div class="history-header">
             <h2 id="cleanup-runs-title">Cleanup runs</h2>
             <div class="history-tools">

@@ -17,6 +17,8 @@ FAILED = "failed"
 TERMINAL_STATUSES = (SUCCEEDED, FAILED)
 DEFAULT_USAGE_POLICY_VERSION = "human-image-authorization-v1"
 DEFAULT_AUTHORIZATION_STATUS = "self_confirmed"
+API_KEY_STATUS_ACTIVE = "active"
+API_KEY_STATUS_REVOKED = "revoked"
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,8 @@ class JobRecord:
     authorization_reference: Optional[str]
     authorization_reviewer: Optional[str]
     authorization_status: str
+    owner_id: Optional[str]
+    created_by_key_id: Optional[str]
     created_at: str
     updated_at: str
 
@@ -50,6 +54,18 @@ class AuditEvent:
     event_type: str
     metadata: dict
     created_at: str
+
+
+@dataclass(frozen=True)
+class ApiKeyRecord:
+    key_id: str
+    owner_id: str
+    role: str
+    label: Optional[str]
+    key_prefix: str
+    status: str
+    created_at: str
+    revoked_at: Optional[str]
 
 
 class JobStore:
@@ -72,6 +88,8 @@ class JobStore:
         authorization_reference: str | None = None,
         authorization_reviewer: str | None = None,
         authorization_status: str = DEFAULT_AUTHORIZATION_STATUS,
+        owner_id: str | None = None,
+        created_by_key_id: str | None = None,
     ) -> JobRecord:
         now = _now()
         job_id = job_id or uuid.uuid4().hex
@@ -85,9 +103,10 @@ class JobStore:
                     driving_path, output_dir, result_path, error_message,
                     source_sha256, driving_sha256, output_sha256, consent_confirmed,
                     usage_policy_version, authorization_basis, authorization_reference,
-                    authorization_reviewer, authorization_status, created_at, updated_at
+                    authorization_reviewer, authorization_status, owner_id,
+                    created_by_key_id, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -108,6 +127,8 @@ class JobStore:
                     authorization_reference,
                     authorization_reviewer,
                     authorization_status,
+                    owner_id,
+                    created_by_key_id,
                     now,
                     now,
                 ),
@@ -127,6 +148,8 @@ class JobStore:
                     "authorization_reference": authorization_reference,
                     "authorization_reviewer": authorization_reviewer,
                     "authorization_status": authorization_status,
+                    "owner_id": owner_id,
+                    "created_by_key_id": created_by_key_id,
                 },
                 now,
             )
@@ -148,6 +171,7 @@ class JobStore:
         status: str | None = None,
         authorization_reference: str | None = None,
         authorization_status: str | None = None,
+        owner_id: str | None = None,
     ) -> list[JobRecord]:
         safe_limit = max(1, min(limit, 100))
         clauses = []
@@ -161,6 +185,9 @@ class JobStore:
         if authorization_status is not None:
             clauses.append("authorization_status = ?")
             values.append(authorization_status)
+        if owner_id is not None:
+            clauses.append("owner_id = ?")
+            values.append(owner_id)
         where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._connect() as conn:
             rows = conn.execute(
@@ -169,13 +196,89 @@ class JobStore:
             ).fetchall()
         return [_row_to_job(row) for row in rows]
 
-    def count_active_jobs(self) -> int:
+    def count_active_jobs(self, owner_id: str | None = None) -> int:
+        where_clause = "WHERE status IN (?, ?)"
+        values: list[str] = [PENDING, RUNNING]
+        if owner_id is not None:
+            where_clause += " AND owner_id = ?"
+            values.append(owner_id)
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT COUNT(*) AS total FROM jobs WHERE status IN (?, ?)",
-                (PENDING, RUNNING),
+                f"SELECT COUNT(*) AS total FROM jobs {where_clause}",
+                values,
             ).fetchone()
         return int(row["total"])
+
+    def create_api_key(
+        self,
+        owner_id: str,
+        role: str,
+        secret: str,
+        label: str | None = None,
+        key_id: str | None = None,
+    ) -> ApiKeyRecord:
+        now = _now()
+        key_id = key_id or uuid.uuid4().hex
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO api_keys (
+                    key_id, owner_id, role, label, key_digest, key_prefix, status,
+                    created_at, revoked_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    key_id,
+                    owner_id,
+                    role,
+                    label,
+                    hash_api_key(secret),
+                    secret[:12],
+                    API_KEY_STATUS_ACTIVE,
+                    now,
+                    None,
+                ),
+            )
+        return self.get_api_key(key_id)  # type: ignore[return-value]
+
+    def get_api_key(self, key_id: str) -> Optional[ApiKeyRecord]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM api_keys WHERE key_id = ?", (key_id,)).fetchone()
+        return _row_to_api_key(row) if row else None
+
+    def get_active_api_key(self, secret: str) -> Optional[ApiKeyRecord]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM api_keys WHERE key_digest = ? AND status = ?",
+                (hash_api_key(secret), API_KEY_STATUS_ACTIVE),
+            ).fetchone()
+        return _row_to_api_key(row) if row else None
+
+    def list_api_keys(self) -> list[ApiKeyRecord]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM api_keys ORDER BY created_at DESC").fetchall()
+        return [_row_to_api_key(row) for row in rows]
+
+    def has_api_keys(self) -> bool:
+        with self._connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS total FROM api_keys").fetchone()
+        return bool(row["total"])
+
+    def revoke_api_key(self, key_id: str) -> Optional[ApiKeyRecord]:
+        now = _now()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE api_keys
+                SET status = ?, revoked_at = ?
+                WHERE key_id = ? AND status = ?
+                """,
+                (API_KEY_STATUS_REVOKED, now, key_id, API_KEY_STATUS_ACTIVE),
+            )
+        if cursor.rowcount != 1:
+            return None
+        return self.get_api_key(key_id)
 
     def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
         placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
@@ -252,6 +355,8 @@ class JobStore:
                     authorization_reference TEXT,
                     authorization_reviewer TEXT,
                     authorization_status TEXT NOT NULL DEFAULT 'self_confirmed',
+                    owner_id TEXT,
+                    created_by_key_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -281,6 +386,25 @@ class JobStore:
                 "authorization_status",
                 "TEXT NOT NULL DEFAULT 'self_confirmed'",
             )
+            _ensure_column(conn, "jobs", "owner_id", "TEXT")
+            _ensure_column(conn, "jobs", "created_by_key_id", "TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS jobs_owner_id_idx ON jobs(owner_id)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    key_id TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    label TEXT,
+                    key_digest TEXT NOT NULL UNIQUE,
+                    key_prefix TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    revoked_at TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS api_keys_owner_id_idx ON api_keys(owner_id)")
 
     def _insert_audit_event(
         self,
@@ -332,6 +456,8 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
         authorization_reference=row["authorization_reference"],
         authorization_reviewer=row["authorization_reviewer"],
         authorization_status=row["authorization_status"],
+        owner_id=row["owner_id"],
+        created_by_key_id=row["created_by_key_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -347,6 +473,19 @@ def _row_to_audit_event(row: sqlite3.Row) -> AuditEvent:
     )
 
 
+def _row_to_api_key(row: sqlite3.Row) -> ApiKeyRecord:
+    return ApiKeyRecord(
+        key_id=row["key_id"],
+        owner_id=row["owner_id"],
+        role=row["role"],
+        label=row["label"],
+        key_prefix=row["key_prefix"],
+        status=row["status"],
+        created_at=row["created_at"],
+        revoked_at=row["revoked_at"],
+    )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -355,6 +494,10 @@ def _event_metadata(fields: dict) -> dict:
     metadata = dict(fields)
     metadata.pop("updated_at", None)
     return metadata
+
+
+def hash_api_key(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
 
 def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:

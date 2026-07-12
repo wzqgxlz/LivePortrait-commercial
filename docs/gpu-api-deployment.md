@@ -92,6 +92,7 @@ export LIVEPORTRAIT_API_PYTHON="python"
 export LIVEPORTRAIT_API_FORCE_CPU="0"
 export LIVEPORTRAIT_API_MAX_UPLOAD_BYTES="209715200"
 export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS="20"
+export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER="3"
 ```
 
 You can also start from the template:
@@ -114,13 +115,17 @@ The same service exposes:
 - Health check: `http://<server-ip>:8000/api/health`
 - API job endpoint: `POST http://<server-ip>:8000/api/jobs`
 
-The frontend stores the API Key in browser local storage and sends it as
-`x-api-key` for job creation, status polling, and result download.
+`LIVEPORTRAIT_API_KEY` is the bootstrap administrator Key. Keep it in server
+configuration and do not give it to end users. Use it to issue personal Keys
+through `POST /api/admin/api-keys`; personal Keys can create and view only their
+own jobs. The frontend keeps a personal Key only for the current browser session
+and sends it as `x-api-key` for job creation, status polling, and result download.
 
 Keep `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` conservative until the GPU has passed
 load testing. It counts jobs that are still `pending` or `running` and rejects
 new uploads with `429` when the queue is full. The default upload limit is
-200 MB per file.
+200 MB per file. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER` separately limits
+each personal Key owner; the default is three active jobs.
 
 ## 5. Check Deployment
 

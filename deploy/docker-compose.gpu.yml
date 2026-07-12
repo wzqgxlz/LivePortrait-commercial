@@ -15,6 +15,7 @@ services:
       LIVEPORTRAIT_API_FORCE_CPU: "0"
       LIVEPORTRAIT_API_MAX_UPLOAD_BYTES: "209715200"
       LIVEPORTRAIT_API_MAX_ACTIVE_JOBS: "20"
+      LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER: "3"
     volumes:
       - ../tmp/api:/app/tmp/api
       - ../pretrained_weights:/app/pretrained_weights

@@ -8,6 +8,7 @@ cd "$(dirname "$0")/.."
 : "${LIVEPORTRAIT_API_DATA_DIR:=tmp/api}"
 : "${LIVEPORTRAIT_API_PYTHON:=python}"
 : "${LIVEPORTRAIT_API_FORCE_CPU:=0}"
+: "${LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER:=3}"
 
 if [[ -z "${LIVEPORTRAIT_API_KEY:-}" ]]; then
   echo "LIVEPORTRAIT_API_KEY must be set before starting a deployed API server." >&2
@@ -29,6 +30,7 @@ export LIVEPORTRAIT_API_PORT
 export LIVEPORTRAIT_API_DATA_DIR
 export LIVEPORTRAIT_API_PYTHON
 export LIVEPORTRAIT_API_FORCE_CPU
+export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER
 
 exec "${LIVEPORTRAIT_API_PYTHON}" -m uvicorn src.api.app:app \
   --host "${LIVEPORTRAIT_API_HOST}" \

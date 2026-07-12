@@ -8,6 +8,7 @@ def test_gpu_api_start_script_requires_key_and_uses_gpu_defaults():
 
     assert "LIVEPORTRAIT_API_KEY must be set" in script
     assert "LIVEPORTRAIT_API_FORCE_CPU:=0" in script
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER:=3" in script
     assert '"${LIVEPORTRAIT_API_PYTHON}" scripts/commercial_safety_scan.py' in script
     assert "uvicorn src.api.app:app" in script
     assert "--host \"${LIVEPORTRAIT_API_HOST}\"" in script
@@ -36,6 +37,7 @@ def test_deployment_env_template_contains_safe_defaults():
     assert "LIVEPORTRAIT_API_FORCE_CPU=0" in template
     assert "LIVEPORTRAIT_API_DATA_DIR=tmp/api" in template
     assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS=20" in template
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER=3" in template
     assert "LIVEPORTRAIT_API_MAX_UPLOAD_BYTES=209715200" in template
 
 
@@ -57,8 +59,10 @@ def test_docker_deployment_files_use_gpu_api_defaults_and_exclude_local_artifact
     assert "pip install torch torchvision torchaudio" in dockerfile
     assert "pip install -r requirements.txt" in dockerfile
     assert "LIVEPORTRAIT_API_FORCE_CPU=0" in dockerfile
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER=3" in dockerfile
     assert "scripts/start_gpu_api_server.sh" in dockerfile
     assert "LIVEPORTRAIT_API_KEY" in compose
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER" in compose
     assert "deploy/Dockerfile.api" in compose
     assert "capabilities: [gpu]" in compose
     assert "8000:8000" in compose
@@ -74,6 +78,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     script = Path("scripts/check_api_deployment.py").read_text(encoding="utf-8")
 
     assert "/api/health" in script
+    assert "/api/whoami" in script
     assert "/api/jobs?limit=1" in script
     assert "/api/authorization-records/export" in script
     assert "/api/cleanup-runs?limit=1" in script
