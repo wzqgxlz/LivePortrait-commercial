@@ -36,7 +36,9 @@ python scripts/commercial_safety_scan.py
   - `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB=2`
 - Keep `LIVEPORTRAIT_API_KEY` as the bootstrap administrator Key; issue each
   tester/customer a separate personal Key instead of sharing it.
-- Start the API behind HTTPS before any public network access.
+- Start the API behind HTTPS before any public network access. Use
+  `deploy/nginx-liveportrait-api.conf` or `deploy/Caddyfile.example` as the
+  baseline reverse proxy template.
 
 ### Verification
 
@@ -69,9 +71,13 @@ Use these checks while the MVP is serving testers.
 
 - Open `GET /api/health` and confirm `status=ok`.
 - Confirm the frontend loads at `/`.
+- Confirm the public HTTPS domain redirects from HTTP and serves a valid
+  certificate.
 - Confirm the API Key still protects job endpoints.
 - Check available disk space for `LIVEPORTRAIT_API_DATA_DIR`.
 - Check GPU memory before raising `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS`.
+- Check reverse proxy access/error logs for upload errors, `413`, `499`, `502`,
+  or timeout spikes.
 
 ### Access Management
 
@@ -228,6 +234,17 @@ Use this lightweight flow for MVP incidents.
 - Lower `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB` if repeated failures are creating
   avoidable pressure.
 
+### Reverse Proxy Or HTTPS Failure
+
+- Keep the API service running on the internal port while fixing the proxy.
+- Validate Nginx with `sudo nginx -t` or Caddy with
+  `sudo caddy validate --config /etc/caddy/Caddyfile`.
+- Confirm the reverse proxy upload limit is above
+  `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES`.
+- Check certificate renewal status before rotating DNS or firewall rules.
+- Run `scripts/check_api_deployment.py` against both `http://127.0.0.1:8000`
+  and the public HTTPS URL to isolate proxy issues from API issues.
+
 ### Disk Pressure
 
 - Run cleanup dry-run first.
@@ -253,6 +270,9 @@ Use this lightweight flow for MVP incidents.
   system.
 - SQLite and local disk are suitable for MVP/single-node operation, not
   multi-node production.
+- The included Nginx/Caddy files are deployment templates; production domains,
+  certificate paths, firewall rules, rate limiting, and WAF/CDN policy still
+  need environment-specific review.
 - Personal API Keys provide `user` and `admin` roles plus task isolation, but
   full user accounts, billing, and per-customer authorization records are
   future work.

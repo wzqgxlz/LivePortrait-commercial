@@ -134,7 +134,46 @@ audit event and require an explicit retry, preventing an unobserved duplicate
 generation. The default `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB=2` permits two
 retries after the initial execution attempt.
 
-## 5. Check Deployment
+## 5. Put HTTPS In Front
+
+For any external tester or customer, keep the FastAPI service behind a reverse
+proxy and expose the HTTPS domain, not the raw `:8000` service. The API can keep
+listening on `127.0.0.1:8000` or an internal network address while Nginx/Caddy
+handles TLS, upload size limits, request timeouts, and access logs.
+
+Example public URL:
+
+```text
+https://liveportrait.example.com/
+```
+
+Nginx template:
+
+```bash
+sudo cp deploy/nginx-liveportrait-api.conf /etc/nginx/sites-available/liveportrait-api.conf
+sudo ln -s /etc/nginx/sites-available/liveportrait-api.conf /etc/nginx/sites-enabled/liveportrait-api.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Before enabling it, replace `liveportrait.example.com` and the certificate paths
+in `deploy/nginx-liveportrait-api.conf`. The template sets `client_max_body_size
+220m`, which should stay above `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES=209715200`.
+It also sets long proxy timeouts because video generation can take longer than
+typical web requests.
+
+Caddy template:
+
+```bash
+sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Caddy can issue and renew certificates automatically when the domain points to
+the server and ports `80` and `443` are open.
+
+## 6. Check Deployment
 
 After startup, run a non-inference deployment check:
 
@@ -154,7 +193,15 @@ This checks:
 - that the audit export endpoint rejects requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 
-## 6. Run A Real Smoke Job
+When HTTPS is configured, rerun the check against the public domain:
+
+```bash
+python scripts/check_api_deployment.py \
+  --base-url https://liveportrait.example.com \
+  --api-key "$LIVEPORTRAIT_API_KEY"
+```
+
+## 7. Run A Real Smoke Job
 
 After the lightweight deployment check passes, submit one real Humans mode job:
 
@@ -180,7 +227,7 @@ either the systemd or Docker Compose path first, then record the deployment
 mode, smoke job ID, result path, `output_sha256`, and the selected runtime's
 status/log evidence. Do not run both service modes on port `8000`.
 
-## 7. Run With systemd
+## 8. Run With systemd
 
 Install the service template after you have copied the repository to
 `/opt/liveportrait` and created `/etc/liveportrait/liveportrait-api.env`:
@@ -199,7 +246,7 @@ View logs:
 journalctl -u liveportrait-api -f
 ```
 
-## 8. Run With Docker Compose
+## 9. Run With Docker Compose
 
 The repository also includes a minimal GPU container deployment:
 
@@ -264,7 +311,7 @@ The Compose file requests one NVIDIA GPU and mounts:
 
 Use the systemd flow or the Docker Compose flow, not both on the same port.
 
-## 9. Clean Old Jobs
+## 10. Clean Old Jobs
 
 Preview cleanup:
 
@@ -290,7 +337,7 @@ Each cleanup run appends an operational record to:
 Keep this file with the API data directory if you need retention and deletion
 evidence for customer support or internal audits.
 
-## 10. Production Notes
+## 11. Production Notes
 
 - Put the service behind HTTPS before public access.
 - Keep `LIVEPORTRAIT_API_KEY` secret and rotate it when sharing access changes.

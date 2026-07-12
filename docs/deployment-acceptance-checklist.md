@@ -135,7 +135,33 @@ Pass/Fail Criteria:
 - Fail: both modes are running, the container/service is restarting, mounted
   storage is unavailable, or the API Key is missing.
 
-### 5. Lightweight Deployment Check
+### 5. HTTPS Reverse Proxy
+
+- [ ] Public domain points to the deployment machine.
+- [ ] Reverse proxy mode is recorded as `nginx`, `caddy`, or platform-managed.
+- [ ] `deploy/nginx-liveportrait-api.conf` or `deploy/Caddyfile.example` has
+  been copied and edited for the real domain.
+- [ ] HTTP redirects to HTTPS.
+- [ ] TLS certificate is valid in a browser.
+- [ ] Reverse proxy upload limit is above `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES`.
+- [ ] Reverse proxy read/write timeout is long enough for generation requests.
+- [ ] The public frontend loads at the HTTPS URL.
+
+Example:
+
+```bash
+curl -I http://liveportrait.example.com/
+curl -I https://liveportrait.example.com/api/health
+```
+
+Pass/Fail Criteria:
+
+- Pass: the browser and API are reachable through HTTPS, raw `:8000` does not
+  need to be exposed publicly, and large uploads are not blocked by the proxy.
+- Fail: certificate is invalid, HTTPS does not reach the API, uploads get `413`,
+  or the public URL bypasses the intended API Key protection.
+
+### 6. Lightweight Deployment Check
 
 Run:
 
@@ -152,7 +178,15 @@ Pass/Fail Criteria:
 - Fail: any endpoint is unavailable or protected endpoints do not require
   `x-api-key`.
 
-### 6. Real Smoke Job
+After HTTPS is configured, repeat the same check against the public URL.
+
+```bash
+python scripts/check_api_deployment.py \
+  --base-url https://liveportrait.example.com \
+  --api-key "$LIVEPORTRAIT_API_KEY"
+```
+
+### 7. Real Smoke Job
 
 Run one real Humans mode job:
 
@@ -172,7 +206,7 @@ Pass/Fail Criteria:
 - Fail: upload is rejected, job stays pending/running past the timeout, job
   fails, result download fails, or `output_sha256` is missing.
 
-### 7. Audit And Support Export
+### 8. Audit And Support Export
 
 After the smoke job succeeds:
 
@@ -188,7 +222,7 @@ Pass/Fail Criteria:
 - Pass: the export can support a future customer-support investigation.
 - Fail: audit events or hashes are missing.
 
-### 8. Browser Access Management
+### 9. Browser Access Management
 
 Open the frontend with the bootstrap administrator Key.
 
@@ -207,7 +241,7 @@ Pass/Fail Criteria:
 - Fail: raw old Keys are visible, non-admin users see the panel, or owner
   isolation fails.
 
-### 9. Cleanup Evidence
+### 10. Cleanup Evidence
 
 Run cleanup dry-run:
 

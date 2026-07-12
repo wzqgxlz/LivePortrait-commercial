@@ -1,0 +1,22 @@
+# Caddy reverse proxy template for the LivePortrait API.
+# Replace liveportrait.example.com with the deployment domain.
+
+liveportrait.example.com {
+    encode zstd gzip
+    request_body {
+        max_size 220MB
+    }
+    reverse_proxy 127.0.0.1:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto https
+        transport http {
+            read_timeout 3600s
+            write_timeout 3600s
+        }
+    }
+    log {
+        output file /var/log/caddy/liveportrait-api.access.log
+        format console
+    }
+}

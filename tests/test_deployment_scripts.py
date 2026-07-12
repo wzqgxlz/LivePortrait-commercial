@@ -28,6 +28,9 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "python scripts/download_humans_assets.py" in doc
     assert "docker compose -f deploy/docker-compose.gpu.yml up -d --build" in doc
     assert "deploy/Dockerfile.api" in doc
+    assert "deploy/nginx-liveportrait-api.conf" in doc
+    assert "deploy/Caddyfile.example" in doc
+    assert "https://liveportrait.example.com/" in doc
 
 
 def test_deployment_env_template_contains_safe_defaults():
@@ -76,6 +79,27 @@ def test_docker_deployment_files_use_gpu_api_defaults_and_exclude_local_artifact
     assert "tmp/" in dockerignore
     assert "output/" in dockerignore
     assert "LivePortrait_env/" in dockerignore
+
+
+def test_reverse_proxy_templates_route_https_to_local_api_with_upload_limits():
+    nginx = Path("deploy/nginx-liveportrait-api.conf").read_text(encoding="utf-8")
+    caddy = Path("deploy/Caddyfile.example").read_text(encoding="utf-8")
+
+    assert "liveportrait.example.com" in nginx
+    assert "listen 80" in nginx
+    assert "listen 443 ssl http2" in nginx
+    assert "return 301 https://$host$request_uri" in nginx
+    assert "proxy_pass http://127.0.0.1:8000" in nginx
+    assert "client_max_body_size 220m" in nginx
+    assert "proxy_read_timeout 3600s" in nginx
+    assert "proxy_request_buffering off" in nginx
+    assert "X-Forwarded-Proto https" in nginx
+
+    assert "liveportrait.example.com" in caddy
+    assert "reverse_proxy 127.0.0.1:8000" in caddy
+    assert "max_size 220MB" in caddy
+    assert "read_timeout 3600s" in caddy
+    assert "X-Forwarded-Proto https" in caddy
 
 
 def test_deployment_check_script_verifies_health_frontend_and_auth():
@@ -128,6 +152,9 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "POST /api/cleanup-runs" in doc
     assert "GET /api/jobs/{job_id}/export" in doc
     assert "Incident Response" in doc
+    assert "deploy/nginx-liveportrait-api.conf" in doc
+    assert "deploy/Caddyfile.example" in doc
+    assert "Reverse Proxy Or HTTPS Failure" in doc
 
 
 def test_deployment_acceptance_checklist_covers_evidence_and_failures():
@@ -147,6 +174,10 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "deploy/Dockerfile.api" in doc
     assert "docker compose -f deploy/docker-compose.gpu.yml ps" in doc
     assert "sudo systemctl stop liveportrait-api" in doc
+    assert "HTTPS Reverse Proxy" in doc
+    assert "deploy/nginx-liveportrait-api.conf" in doc
+    assert "deploy/Caddyfile.example" in doc
+    assert "https://liveportrait.example.com" in doc
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():
