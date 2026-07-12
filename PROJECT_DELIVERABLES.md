@@ -40,6 +40,8 @@ wrapper:
   evidence packages.
 - Non-GPU local product workflow acceptance script and recorded acceptance
   evidence.
+- GPU machine quickstart command checklist for clone, preflight, API startup,
+  smoke job, and browser validation.
 - Deployment preflight script for Python, dependency, model, MediaPipe,
   commercial-safety, API environment, and CUDA readiness checks.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
@@ -130,6 +132,7 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
+| GPU machine quickstart | `docs/gpu-machine-quickstart.md` | Shortest command checklist for validating a newly rented NVIDIA GPU machine from clone through preflight, API startup, smoke job, and browser UI check. |
 | GPU deployment guide | `docs/gpu-api-deployment.md` | Step-by-step cloud GPU setup, dependency installation, API startup, smoke test, systemd setup, and cleanup notes. |
 | API service guide | `docs/mvp-api-service.md` | Local/API usage guide, endpoint descriptions, auth behavior, frontend notes, smoke test records, and cleanup flow. |
 | systemd environment template | `deploy/liveportrait-api.env.example` | Production-style environment variables for API deployment. |
@@ -153,6 +156,7 @@ wrapper:
 | Artifact | Path | Purpose |
 | --- | --- | --- |
 | Deliverables index | `PROJECT_DELIVERABLES.md` | This running inventory of project outputs. |
+| GPU machine quickstart | `docs/gpu-machine-quickstart.md` | Compact GPU-machine setup and validation sequence for first deployment runs. |
 | API service guide | `docs/mvp-api-service.md` | Main operator/developer reference for the MVP API and frontend. |
 | GPU deployment guide | `docs/gpu-api-deployment.md` | GPU machine setup and deployment reference. |
 | Deployment acceptance checklist | `docs/deployment-acceptance-checklist.md` | Unified systemd/Docker Compose acceptance stages, runtime evidence table, pass/fail criteria, smoke-job validation, cleanup evidence, and rollback steps. |
@@ -190,7 +194,7 @@ python scripts\check_local_product_workflow.py
 Latest known full test result:
 
 ```text
-65 passed
+66 passed
 Commercial safety scan passed.
 ```
 
@@ -198,6 +202,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `d652fb5` | `chore: add deployment preflight check` |
 | `49402f9` | `docs: add local product workflow acceptance` |
 | `95ae98f` | `feat: add operational audit export` |
 | `f815add` | `feat: add operational audit retention cleanup` |

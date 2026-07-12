@@ -3,6 +3,10 @@
 This guide starts the commercial-safe Humans mode API and the minimal frontend
 on a Linux GPU cloud machine.
 
+For the shortest clone-to-smoke-test command path on a newly rented GPU
+machine, use `docs/gpu-machine-quickstart.md` first, then return to this guide
+for the longer-running service setup.
+
 The frontend is served by the same FastAPI service. After the server starts,
 open:
 

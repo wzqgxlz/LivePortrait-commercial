@@ -19,6 +19,7 @@ def test_gpu_api_start_script_requires_key_and_uses_gpu_defaults():
 def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     doc = Path("docs/gpu-api-deployment.md").read_text(encoding="utf-8")
 
+    assert "docs/gpu-machine-quickstart.md" in doc
     assert "http://<server-ip>:8000/" in doc
     assert "LIVEPORTRAIT_API_KEY" in doc
     assert "scripts/start_gpu_api_server.sh" in doc
@@ -35,6 +36,35 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "operations audit export endpoint" in doc
     assert "CUDA" in doc
     assert "PyTorch" in doc
+
+
+def test_gpu_machine_quickstart_covers_clone_to_browser_validation():
+    doc = Path("docs/gpu-machine-quickstart.md").read_text(encoding="utf-8")
+    acceptance = Path("docs/deployment-acceptance-checklist.md").read_text(encoding="utf-8")
+    deliverables = Path("PROJECT_DELIVERABLES.md").read_text(encoding="utf-8")
+
+    assert "nvidia-smi" in doc
+    assert "git clone https://github.com/wzqgxlz/LivePortrait-commercial.git" in doc
+    assert "git checkout codex/commercial-mediapipe-cropper" in doc
+    assert "python3 -m venv .venv" in doc
+    assert "pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128" in doc
+    assert "torch.cuda.is_available()" in doc
+    assert "python scripts/download_humans_assets.py" in doc
+    assert "LIVEPORTRAIT_API_KEY" in doc
+    assert "LIVEPORTRAIT_API_FORCE_CPU=0" in doc
+    assert "python scripts/check_deployment_preflight.py" in doc
+    assert "bash scripts/start_gpu_api_server.sh" in doc
+    assert "python scripts/check_api_deployment.py" in doc
+    assert "python scripts/smoke_api_job.py" in doc
+    assert "http://<server-ip>:8000/" in doc
+    assert "docs/deployment-acceptance-checklist.md" in doc
+    assert "deploy/liveportrait-api.service" in doc
+    assert "deploy/docker-compose.gpu.yml" in doc
+    assert "deploy/nginx-liveportrait-api.conf" in doc
+    assert "deploy/Caddyfile.example" in doc
+    assert "CUDA out-of-memory" in doc
+    assert "docs/gpu-machine-quickstart.md" in acceptance
+    assert "docs/gpu-machine-quickstart.md" in deliverables
 
 
 def test_deployment_env_template_contains_safe_defaults():

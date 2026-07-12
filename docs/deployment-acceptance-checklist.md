@@ -4,6 +4,10 @@ Use this checklist when moving the commercial-safe Humans mode MVP onto a new
 GPU machine or when refreshing an existing deployment. It is designed to produce
 clear acceptance evidence before a tester or customer uses the service.
 
+If this is the first run on a newly rented GPU machine, complete
+`docs/gpu-machine-quickstart.md` before collecting the full acceptance evidence
+below.
+
 Animals mode is out of scope for this checklist.
 
 ## Choose One Deployment Mode
