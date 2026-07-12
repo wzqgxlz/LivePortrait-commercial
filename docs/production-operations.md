@@ -75,11 +75,13 @@ Use these checks while the MVP is serving testers.
 
 ### Access Management
 
-- Use `GET /api/admin/api-keys` with the bootstrap administrator Key to review
-  issued personal Keys without exposing their secret values.
+- Use the frontend Access management panel or `GET /api/admin/api-keys` with
+  the bootstrap administrator Key to review issued personal Keys without
+  exposing their secret values.
 - Issue a separate `role=user` Key for each customer, tester, or integration.
-- Revoke a Key with `POST /api/admin/api-keys/{key_id}/revoke` as soon as it is
-  no longer needed or may have been exposed.
+- Revoke a Key from the frontend or with
+  `POST /api/admin/api-keys/{key_id}/revoke` as soon as it is no longer needed
+  or may have been exposed.
 - Confirm a user Key can access only its own jobs through `GET /api/whoami` and
   `GET /api/jobs`.
 - Keep cleanup and cross-customer support work on an administrator Key.
@@ -110,7 +112,8 @@ GET /api/jobs?authorization_reference=CRM-2026-0001
 ```
 
 The frontend exposes the same job-status, authorization-status, and
-authorization-reference filters in the Recent jobs section.
+authorization-reference filters in the Recent jobs section. Administrators also
+get an owner filter for cross-customer support checks.
 
 ### Restart And Retry Handling
 
@@ -245,8 +248,9 @@ Use this lightweight flow for MVP incidents.
 
 ## MVP Limitations
 
-- API Key issuance/revocation is available through administrator endpoints, but
-  there is not yet a browser-based multi-user admin console or account login.
+- API Key issuance/revocation is available through administrator endpoints and
+  the browser Access management panel, but there is not yet a full account login
+  system.
 - SQLite and local disk are suitable for MVP/single-node operation, not
   multi-node production.
 - Personal API Keys provide `user` and `admin` roles plus task isolation, but

@@ -188,7 +188,26 @@ Pass/Fail Criteria:
 - Pass: the export can support a future customer-support investigation.
 - Fail: audit events or hashes are missing.
 
-### 8. Cleanup Evidence
+### 8. Browser Access Management
+
+Open the frontend with the bootstrap administrator Key.
+
+- [ ] Access management panel is visible.
+- [ ] Existing managed Keys are listed without raw secret values.
+- [ ] A test `role=user` Key can be issued for a temporary owner.
+- [ ] The raw test Key appears only in the create result.
+- [ ] The new owner can create/list only its own jobs.
+- [ ] The administrator can filter Recent jobs by the test owner.
+- [ ] The temporary test Key can be revoked from the frontend.
+
+Pass/Fail Criteria:
+
+- Pass: administrator can manage personal Keys without command-line calls, and
+  user Keys stay owner-isolated.
+- Fail: raw old Keys are visible, non-admin users see the panel, or owner
+  isolation fails.
+
+### 9. Cleanup Evidence
 
 Run cleanup dry-run:
 

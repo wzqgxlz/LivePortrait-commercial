@@ -28,8 +28,20 @@
   const jobStatusFilter = document.getElementById("job-status-filter");
   const authorizationStatusFilter = document.getElementById("authorization-status-filter");
   const authorizationReferenceFilter = document.getElementById("authorization-reference-filter");
+  const ownerFilterField = document.getElementById("owner-filter-field");
+  const ownerIdFilter = document.getElementById("owner-id-filter");
   const refreshJobsButton = document.getElementById("refresh-jobs");
   const exportAuthorizationRecordButton = document.getElementById("export-authorization-record");
+  const accessPanel = document.getElementById("access-panel");
+  const accessIdentity = document.getElementById("access-identity");
+  const apiKeyForm = document.getElementById("api-key-form");
+  const newKeyOwnerInput = document.getElementById("new-key-owner");
+  const newKeyLabelInput = document.getElementById("new-key-label");
+  const newKeyRoleInput = document.getElementById("new-key-role");
+  const createApiKeyButton = document.getElementById("create-api-key");
+  const newApiKeyResult = document.getElementById("new-api-key-result");
+  const apiKeysList = document.getElementById("api-keys-list");
+  const refreshApiKeysButton = document.getElementById("refresh-api-keys");
   const cleanupRunsList = document.getElementById("cleanup-runs-list");
   const cleanupPanel = document.getElementById("cleanup-panel");
   const cleanupOlderThanDaysInput = document.getElementById("cleanup-older-than-days");
@@ -61,14 +73,15 @@
   let maxUploadBytes = null;
   let currentJobId = null;
   let pendingSubmissionKey = null;
+  let currentAccessProfile = null;
 
   apiKeyInput.value = sessionStorage.getItem("liveportrait_api_key") || "";
   updateAuthHint();
   apiKeyInput.addEventListener("change", () => {
     sessionStorage.setItem("liveportrait_api_key", apiKeyInput.value.trim());
     updateAuthHint();
-    loadJobs();
     loadAccessProfile();
+    loadJobs();
   });
 
   renderEmptyState();
@@ -90,8 +103,11 @@
   jobStatusFilter.addEventListener("change", loadJobs);
   authorizationStatusFilter.addEventListener("change", loadJobs);
   authorizationReferenceFilter.addEventListener("change", loadJobs);
+  ownerIdFilter.addEventListener("change", loadJobs);
   refreshJobsButton.addEventListener("click", loadJobs);
   exportAuthorizationRecordButton.addEventListener("click", exportAuthorizationRecord);
+  apiKeyForm.addEventListener("submit", createManagedApiKey);
+  refreshApiKeysButton.addEventListener("click", loadApiKeys);
   cleanupDryRunButton.addEventListener("click", () => runCleanup(true));
   cleanupDeleteButton.addEventListener("click", () => runCleanup(false));
   refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
@@ -220,6 +236,7 @@
       const status = jobStatusFilter.value;
       const authorizationStatus = authorizationStatusFilter.value;
       const authorizationReference = authorizationReferenceFilter.value.trim();
+      const ownerId = ownerIdFilter.value.trim();
       if (status) {
         query.set("status", status);
       }
@@ -228,6 +245,9 @@
       }
       if (authorizationReference) {
         query.set("authorization_reference", authorizationReference);
+      }
+      if (currentAccessProfile && currentAccessProfile.is_admin && ownerId) {
+        query.set("owner_id", ownerId);
       }
       const url = "/api/jobs?" + query.toString();
       const response = await fetch(url, {
@@ -263,15 +283,154 @@
       const response = await fetch("/api/whoami", { headers: authHeaders() });
       const payload = await readJson(response);
       if (!response.ok) {
+        currentAccessProfile = null;
+        ownerFilterField.hidden = true;
+        accessPanel.hidden = true;
         cleanupPanel.hidden = true;
         return;
       }
+      currentAccessProfile = payload;
+      accessIdentity.textContent = "Signed in as " + payload.owner_id + " (" + payload.role + ").";
+      ownerFilterField.hidden = !payload.is_admin;
+      if (!payload.is_admin) {
+        ownerIdFilter.value = "";
+      }
+      accessPanel.hidden = !payload.is_admin;
       cleanupPanel.hidden = !payload.is_admin;
       if (payload.is_admin) {
+        await loadApiKeys();
         await loadCleanupRuns();
       }
     } catch (_) {
+      currentAccessProfile = null;
+      ownerFilterField.hidden = true;
+      accessPanel.hidden = true;
       cleanupPanel.hidden = true;
+    }
+  }
+
+  async function loadApiKeys() {
+    try {
+      const response = await fetch("/api/admin/api-keys", {
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Could not load API keys");
+      }
+      renderApiKeys(payload.api_keys || []);
+    } catch (error) {
+      apiKeysList.textContent = error.message;
+    }
+  }
+
+  async function createManagedApiKey(event) {
+    event.preventDefault();
+    const ownerId = newKeyOwnerInput.value.trim();
+    if (!ownerId) {
+      newApiKeyResult.hidden = false;
+      newApiKeyResult.textContent = "Owner is required before issuing a key.";
+      return;
+    }
+
+    try {
+      createApiKeyButton.disabled = true;
+      const response = await fetch("/api/admin/api-keys", {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          owner_id: ownerId,
+          label: newKeyLabelInput.value.trim() || null,
+          role: newKeyRoleInput.value,
+        }),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "API key creation failed");
+      }
+      renderNewApiKey(payload);
+      apiKeyForm.reset();
+      newKeyRoleInput.value = "user";
+      await loadApiKeys();
+    } catch (error) {
+      newApiKeyResult.hidden = false;
+      newApiKeyResult.textContent = error.message;
+    } finally {
+      createApiKeyButton.disabled = false;
+    }
+  }
+
+  function renderNewApiKey(payload) {
+    newApiKeyResult.hidden = false;
+    newApiKeyResult.replaceChildren();
+    const label = document.createElement("span");
+    label.textContent = "New key for " + payload.owner_id + " - copy it now:";
+    const secret = document.createElement("code");
+    secret.textContent = payload.api_key;
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "secondary-button";
+    copyButton.textContent = "Copy";
+    copyButton.addEventListener("click", async () => {
+      await copyText(payload.api_key);
+      details.textContent = "New API key copied.";
+    });
+    newApiKeyResult.append(label, secret, copyButton);
+  }
+
+  function renderApiKeys(records) {
+    apiKeysList.replaceChildren();
+    if (!records.length) {
+      apiKeysList.textContent = "No managed API keys.";
+      return;
+    }
+
+    for (const record of records) {
+      const item = document.createElement("div");
+      item.className = "api-key-row";
+      const main = document.createElement("span");
+      main.className = "job-main";
+      main.textContent = record.owner_id + " - " + record.role;
+      const meta = document.createElement("span");
+      meta.className = "job-meta";
+      meta.textContent = [
+        record.label || "No label",
+        "prefix " + record.key_prefix,
+        "created " + formatTime(record.created_at),
+        record.revoked_at ? "revoked " + formatTime(record.revoked_at) : "active",
+      ].join(" | ");
+      const revoke = document.createElement("button");
+      revoke.type = "button";
+      revoke.className = "secondary-button danger-button";
+      revoke.textContent = "Revoke";
+      revoke.disabled = Boolean(record.revoked_at) || record.status === "revoked";
+      revoke.addEventListener("click", () => revokeApiKey(record));
+      item.append(main, meta, revoke);
+      apiKeysList.appendChild(item);
+    }
+  }
+
+  async function revokeApiKey(record) {
+    if (!window.confirm("Revoke API key for " + record.owner_id + "?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/api-keys/" + encodeURIComponent(record.key_id) + "/revoke", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "API key revoke failed");
+      }
+      details.textContent = "Revoked API key for " + payload.owner_id + ".";
+      await loadApiKeys();
+    } catch (error) {
+      details.textContent = error.message;
     }
   }
 
@@ -377,6 +536,8 @@
         '">',
         escapeHtml(job.status),
         "</span>",
+        " ",
+        escapeHtml(currentAccessProfile && currentAccessProfile.is_admin ? "owner " + (job.owner_id || "unknown") : ""),
         " ",
         escapeHtml(job.authorization_reference || "No auth ref"),
         " ",
@@ -494,6 +655,7 @@
       summaryRow("Auth ref", job.authorization_reference || "Not specified"),
       summaryRow("Reviewer", job.authorization_reviewer || "Not specified"),
       summaryRow("Review", job.authorization_status || "self_confirmed"),
+      summaryRow("Owner", job.owner_id || "unknown"),
     );
 
     if (job.output_sha256) {
@@ -648,8 +810,25 @@
     return Boolean(
       jobStatusFilter.value ||
       authorizationStatusFilter.value ||
-      authorizationReferenceFilter.value.trim(),
+      authorizationReferenceFilter.value.trim() ||
+      (currentAccessProfile && currentAccessProfile.is_admin && ownerIdFilter.value.trim()),
     );
+  }
+
+  async function copyText(value) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+    const helper = document.createElement("textarea");
+    helper.value = value;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "fixed";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.select();
+    document.execCommand("copy");
+    helper.remove();
   }
 
   function safeDownloadName(value) {

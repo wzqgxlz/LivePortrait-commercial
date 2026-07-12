@@ -91,10 +91,12 @@ job details panel with authorization metadata, timestamps, input/output hashes,
 and failure messages. Recent jobs can be selected again to reload the result and
 audit export. Operators can filter recent jobs by job status, authorization
 status, and authorization reference, then export a JSON package for all recent
-jobs attached to one authorization reference. The page also includes API Key
-guidance, an empty state for first-time users, a completion panel after
-successful generation, and a Cleanup runs panel for dry-run previews, confirmed
-cleanup, and recent retention activity. The cleanup panel is visible only to an
+jobs attached to one authorization reference. Administrators can also filter
+recent jobs by `owner_id`. The page includes API Key guidance, an empty state
+for first-time users, a completion panel after successful generation, a
+browser-based administrator panel for issuing/revoking managed Keys, and a
+Cleanup runs panel for dry-run previews, confirmed cleanup, and recent retention
+activity. The administrator and cleanup panels are visible only to an
 administrator Key.
 
 ### Managed API Keys And Task Isolation
@@ -114,6 +116,12 @@ Users with role `user` can create, list, download, audit, and export only jobs
 owned by their `owner_id`. They cannot inspect another user's job even when they
 know its ID or authorization reference. Administrators can see all jobs, filter
 by `owner_id`, manage Keys, and run cleanup.
+
+The browser frontend exposes the same administrator Key operations. Enter the
+bootstrap administrator Key in the Personal access key field, then use the
+Access management panel to issue `user` or `admin` Keys. The raw Key is displayed
+only once in the browser after creation; the list view shows only the non-secret
+prefix, owner, role, label, status, and timestamps.
 
 List Keys without exposing secrets:
 

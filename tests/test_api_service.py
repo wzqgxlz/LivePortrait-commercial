@@ -46,7 +46,18 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="job-status-filter"' in page_response.text
         assert 'id="authorization-reference-filter"' in page_response.text
         assert 'id="authorization-status-filter"' in page_response.text
+        assert 'id="owner-filter-field"' in page_response.text
+        assert 'id="owner-id-filter"' in page_response.text
         assert 'id="export-authorization-record"' in page_response.text
+        assert 'id="access-panel"' in page_response.text
+        assert 'id="access-identity"' in page_response.text
+        assert 'id="api-key-form"' in page_response.text
+        assert 'id="new-key-owner"' in page_response.text
+        assert 'id="new-key-label"' in page_response.text
+        assert 'id="new-key-role"' in page_response.text
+        assert 'id="new-api-key-result"' in page_response.text
+        assert 'id="api-keys-list"' in page_response.text
+        assert 'id="refresh-api-keys"' in page_response.text
         assert 'id="cleanup-runs-list"' in page_response.text
         assert 'id="refresh-cleanup-runs"' in page_response.text
         assert 'id="cleanup-older-than-days"' in page_response.text
@@ -73,7 +84,16 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "loadJobs" in script_response.text
         assert "jobStatusFilter" in script_response.text
         assert "authorizationReferenceFilter" in script_response.text
+        assert "ownerIdFilter" in script_response.text
         assert "exportAuthorizationRecord" in script_response.text
+        assert "loadApiKeys" in script_response.text
+        assert "createManagedApiKey" in script_response.text
+        assert "renderNewApiKey" in script_response.text
+        assert "renderApiKeys" in script_response.text
+        assert "revokeApiKey" in script_response.text
+        assert "copyText" in script_response.text
+        assert "/api/admin/api-keys" in script_response.text
+        assert "owner_id" in script_response.text
         assert "loadCleanupRuns" in script_response.text
         assert "renderCleanupRuns" in script_response.text
         assert "runCleanup" in script_response.text
@@ -95,6 +115,9 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert ".completion-panel" in style_response.text
         assert ".status-chip" in style_response.text
         assert ".cleanup-runs-list" in style_response.text
+        assert ".access-form" in style_response.text
+        assert ".api-keys-list" in style_response.text
+        assert ".new-key-result" in style_response.text
         assert style_response.status_code == 200
 
 

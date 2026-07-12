@@ -165,11 +165,50 @@
                   placeholder="CRM, ticket, contract"
                 />
               </label>
+              <label id="owner-filter-field" class="compact-field compact-field-wide" hidden>
+                <span>Owner</span>
+                <input
+                  id="owner-id-filter"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="customer-001"
+                />
+              </label>
               <button id="refresh-jobs" class="secondary-button" type="button">Refresh</button>
               <button id="export-authorization-record" class="secondary-button" type="button">Export auth</button>
             </div>
           </div>
           <div id="jobs-list" class="jobs-list">No recent jobs.</div>
+        </div>
+
+        <div id="access-panel" class="history-panel" aria-labelledby="access-title" hidden>
+          <div class="history-header">
+            <div>
+              <h2 id="access-title">Access management</h2>
+              <p id="access-identity" class="section-note">Administrator key required.</p>
+            </div>
+            <button id="refresh-api-keys" class="secondary-button" type="button">Refresh</button>
+          </div>
+          <form id="api-key-form" class="access-form">
+            <label class="compact-field compact-field-wide">
+              <span>Owner</span>
+              <input id="new-key-owner" type="text" autocomplete="off" placeholder="customer-001" required />
+            </label>
+            <label class="compact-field compact-field-wide">
+              <span>Label</span>
+              <input id="new-key-label" type="text" autocomplete="off" placeholder="Pilot access" />
+            </label>
+            <label class="compact-field">
+              <span>Role</span>
+              <select id="new-key-role">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <button id="create-api-key" class="secondary-button" type="submit">Issue key</button>
+          </form>
+          <div id="new-api-key-result" class="new-key-result" hidden></div>
+          <div id="api-keys-list" class="api-keys-list">No API keys loaded.</div>
         </div>
 
         <div id="cleanup-panel" class="history-panel" aria-labelledby="cleanup-runs-title">

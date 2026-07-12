@@ -32,6 +32,8 @@ wrapper:
 - API Key protection.
 - Managed personal API Keys with administrator issue/revoke operations, task
   ownership isolation, and per-owner active-job limits.
+- Browser-based administrator panel for managed API Key issuance/revocation and
+  owner-filtered job review.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
   pending work, and interruption audit events.
 - Source image authorization confirmation.
@@ -74,9 +76,9 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator-only cleanup controls, cleanup history, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, generated idempotency Keys, failed-job retry, identity-aware UI, polling, downloads, exports, owner-isolated recent jobs, and administrator cleanup controls. |
-| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, cleanup run rows, and job detail styling. |
+| Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator API Key management, administrator-only cleanup controls, cleanup history, and job details. |
+| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, generated idempotency Keys, failed-job retry, identity-aware UI, polling, downloads, exports, owner-isolated recent jobs, administrator Key issuance/revocation, owner filtering, and administrator cleanup controls. |
+| Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, access-management rows, cleanup run rows, and job detail styling. |
 
 ## Frontend Features Delivered
 
@@ -84,6 +86,8 @@ wrapper:
 - Driving upload: `.jpg`, `.jpeg`, `.png`, `.mp4`, `.pkl`.
 - Personal API Key stored only for the current browser session.
 - Administrator Key issuance/revocation API with database hashes only.
+- Administrator Access management panel for issuing and revoking personal Keys
+  without exposing previously issued secrets.
 - User/admin roles, task ownership isolation, and per-owner active-job limit.
 - Idempotent submit, attempt count, failed-job retry, and restart interruption handling.
 - Source authorization checkbox before submission.
@@ -97,6 +101,7 @@ wrapper:
 - Recent jobs list.
 - Recent jobs filters for job status, authorization status, and authorization
   reference.
+- Administrator-only owner filter for Recent jobs.
 - Authorization-reference JSON export from the Recent jobs panel.
 - Cleanup runs panel showing recent retention/deletion records.
 - Cleanup dry-run and confirmed delete controls for old terminal jobs.
@@ -165,7 +170,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-52 passed
+57 passed
 Commercial safety scan passed.
 ```
 
@@ -173,6 +178,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `a46e366` | `feat: add resilient job retry handling` |
 | `3671876` | `feat: add managed api key access control` |
 | `bc9dca9` | `docs: expand deployment acceptance checklist` |
 | `0c492d4` | `chore: add docker api deployment` |
