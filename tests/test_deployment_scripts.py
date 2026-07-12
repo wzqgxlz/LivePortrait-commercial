@@ -24,6 +24,8 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "scripts/cleanup_api_jobs.py --older-than-days 7" in doc
     assert "cleanup-runs.jsonl" in doc
     assert "python scripts/download_humans_assets.py" in doc
+    assert "docker compose -f deploy/docker-compose.gpu.yml up -d --build" in doc
+    assert "deploy/Dockerfile.api" in doc
 
 
 def test_deployment_env_template_contains_safe_defaults():
@@ -44,6 +46,28 @@ def test_systemd_template_points_to_start_script_and_env_file():
     assert "ExecStart=/opt/liveportrait/scripts/start_gpu_api_server.sh" in service
     assert "Restart=on-failure" in service
     assert "WorkingDirectory=/opt/liveportrait" in service
+
+
+def test_docker_deployment_files_use_gpu_api_defaults_and_exclude_local_artifacts():
+    dockerfile = Path("deploy/Dockerfile.api").read_text(encoding="utf-8")
+    compose = Path("deploy/docker-compose.gpu.yml").read_text(encoding="utf-8")
+    dockerignore = Path(".dockerignore").read_text(encoding="utf-8")
+
+    assert "nvidia/cuda" in dockerfile
+    assert "pip install torch torchvision torchaudio" in dockerfile
+    assert "pip install -r requirements.txt" in dockerfile
+    assert "LIVEPORTRAIT_API_FORCE_CPU=0" in dockerfile
+    assert "scripts/start_gpu_api_server.sh" in dockerfile
+    assert "LIVEPORTRAIT_API_KEY" in compose
+    assert "deploy/Dockerfile.api" in compose
+    assert "capabilities: [gpu]" in compose
+    assert "8000:8000" in compose
+    assert "../tmp/api:/app/tmp/api" in compose
+    assert "../pretrained_weights:/app/pretrained_weights" in compose
+    assert "pretrained_weights/" in dockerignore
+    assert "tmp/" in dockerignore
+    assert "output/" in dockerignore
+    assert "LivePortrait_env/" in dockerignore
 
 
 def test_deployment_check_script_verifies_health_frontend_and_auth():

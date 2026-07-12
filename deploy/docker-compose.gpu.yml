@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: liveportrait-commercial-api:gpu
+    ports:
+      - "8000:8000"
+    environment:
+      LIVEPORTRAIT_API_KEY: ${LIVEPORTRAIT_API_KEY:?set LIVEPORTRAIT_API_KEY before starting}
+      LIVEPORTRAIT_API_HOST: 0.0.0.0
+      LIVEPORTRAIT_API_PORT: "8000"
+      LIVEPORTRAIT_API_DATA_DIR: tmp/api
+      LIVEPORTRAIT_API_PYTHON: python3
+      LIVEPORTRAIT_API_FORCE_CPU: "0"
+      LIVEPORTRAIT_API_MAX_UPLOAD_BYTES: "209715200"
+      LIVEPORTRAIT_API_MAX_ACTIVE_JOBS: "20"
+    volumes:
+      - ../tmp/api:/app/tmp/api
+      - ../pretrained_weights:/app/pretrained_weights
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

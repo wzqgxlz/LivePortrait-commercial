@@ -185,7 +185,72 @@ View logs:
 journalctl -u liveportrait-api -f
 ```
 
-## 8. Clean Old Jobs
+## 8. Run With Docker Compose
+
+The repository also includes a minimal GPU container deployment:
+
+- `deploy/Dockerfile.api`
+- `deploy/docker-compose.gpu.yml`
+- `.dockerignore`
+
+The image does not copy local `pretrained_weights`, `tmp`, `output`, or local
+virtual environments into the build context. Runtime data is mounted from the
+host so model files and API job data survive container rebuilds.
+
+Set an API Key:
+
+```bash
+export LIVEPORTRAIT_API_KEY="replace-with-a-long-random-secret"
+```
+
+Build the image:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml build
+```
+
+Download Humans assets into the mounted `pretrained_weights` directory:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml run --rm api \
+  python3 scripts/download_humans_assets.py
+```
+
+Run the commercial safety scan inside the container:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml run --rm api \
+  python3 scripts/commercial_safety_scan.py
+```
+
+Start the API and frontend:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml up -d --build
+```
+
+Follow logs:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml logs -f api
+```
+
+Then run the same deployment check from the host:
+
+```bash
+python scripts/check_api_deployment.py \
+  --base-url http://127.0.0.1:8000 \
+  --api-key "$LIVEPORTRAIT_API_KEY"
+```
+
+The Compose file requests one NVIDIA GPU and mounts:
+
+- `../pretrained_weights` to `/app/pretrained_weights`
+- `../tmp/api` to `/app/tmp/api`
+
+Use the systemd flow or the Docker Compose flow, not both on the same port.
+
+## 9. Clean Old Jobs
 
 Preview cleanup:
 
@@ -211,7 +276,7 @@ Each cleanup run appends an operational record to:
 Keep this file with the API data directory if you need retention and deletion
 evidence for customer support or internal audits.
 
-## 9. Production Notes
+## 10. Production Notes
 
 - Put the service behind HTTPS before public access.
 - Keep `LIVEPORTRAIT_API_KEY` secret and rotate it when sharing access changes.

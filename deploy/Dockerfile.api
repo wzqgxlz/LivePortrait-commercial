@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    LIVEPORTRAIT_API_HOST=0.0.0.0 \
+    LIVEPORTRAIT_API_PORT=8000 \
+    LIVEPORTRAIT_API_DATA_DIR=tmp/api \
+    LIVEPORTRAIT_API_PYTHON=python3 \
+    LIVEPORTRAIT_API_FORCE_CPU=0
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    libglib2.0-0 \
+    libgl1 \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements_base.txt ./
+
+RUN python3 -m pip install --upgrade pip \
+    && python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 \
+    && python3 -m pip install -r requirements.txt huggingface_hub
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["bash", "scripts/start_gpu_api_server.sh"]

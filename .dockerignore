@@ -1,0 +1,17 @@
+.git/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+LivePortrait_env/
+ffmpeg/
+tmp/
+output/
+animations/
+gradio_temp/
+
+pretrained_weights/
+
+.vscode/
+*.ipynb

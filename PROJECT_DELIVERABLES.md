@@ -41,7 +41,7 @@ wrapper:
 - Recent job status filtering for lightweight operations triage.
 - Cleanup run records, dry-run cleanup action, confirmed cleanup action, and
   cleanup history view for retention/deletion evidence.
-- GPU deployment and smoke-test scripts.
+- GPU deployment, Docker Compose deployment, and smoke-test scripts.
 
 ## Core Commercial-Safety Deliverables
 
@@ -109,6 +109,9 @@ wrapper:
 | API service guide | `docs/mvp-api-service.md` | Local/API usage guide, endpoint descriptions, auth behavior, frontend notes, smoke test records, and cleanup flow. |
 | systemd environment template | `deploy/liveportrait-api.env.example` | Production-style environment variables for API deployment. |
 | systemd service template | `deploy/liveportrait-api.service` | Example Linux service unit for long-running API deployment. |
+| API Dockerfile | `deploy/Dockerfile.api` | Builds a GPU API container image without bundling local model caches, output files, or API data. |
+| GPU Docker Compose file | `deploy/docker-compose.gpu.yml` | Runs the API container with NVIDIA GPU access, mounted model weights, mounted API data, API Key configuration, and port `8000`. |
+| Docker build ignore file | `.dockerignore` | Keeps local virtualenvs, temp files, outputs, and model caches out of container build context. |
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
 | Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, cleanup run history protection, and cleanup action protection. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
@@ -155,7 +158,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-51 passed
+52 passed
 Commercial safety scan passed.
 ```
 
@@ -163,6 +166,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `3e4b3f4` | `feat: add confirmed cleanup action` |
 | `52c353b` | `feat: add authorization record operations` |
 | `23728f2` | `feat: add lightweight authorization metadata` |
 | `eddf8e8` | `docs: add content safety authorization workflow` |
