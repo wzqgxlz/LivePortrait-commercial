@@ -133,9 +133,14 @@ def test_api_job_smoke_script_submits_polls_and_downloads_result():
 
 def test_cleanup_script_records_cleanup_runs():
     script = Path("scripts/cleanup_api_jobs.py").read_text(encoding="utf-8")
+    cleanup = Path("src/api/cleanup.py").read_text(encoding="utf-8")
 
     assert "cleanup-runs.jsonl" in script
     assert "record=" in script
+    assert "operational_audit_matched" in script
+    assert "operational_audit_deleted" in script
+    assert "count_operational_audit_events_before" in cleanup
+    assert "delete_operational_audit_events_before" in cleanup
 
 
 def test_production_operations_doc_covers_launch_and_support_workflows():
@@ -157,6 +162,7 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "Reverse Proxy Or HTTPS Failure" in doc
     assert "GET /api/admin/audit-events" in doc
     assert "Operations Audit" in doc
+    assert "operational audit event counts" in doc
 
 
 def test_deployment_acceptance_checklist_covers_evidence_and_failures():
@@ -183,6 +189,7 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "Operations Audit" in doc
     assert "api_key.created" in doc
     assert "job.retried" in doc
+    assert "operational_audit_matched_events" in doc
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():

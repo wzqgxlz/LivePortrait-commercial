@@ -135,7 +135,8 @@ GET /api/admin/audit-events?action=api_key.revoked
 The audit includes the actor owner, actor Key ID when available, role, action,
 target type, target ID, metadata, and timestamp. It records managed Key creation
 and revocation, cleanup dry-runs/deletions, and failed-job retries. It stores
-non-secret Key prefixes only, never raw API Key values.
+non-secret Key prefixes only, never raw API Key values. Old operational audit
+rows follow the same cleanup retention window as old terminal jobs.
 
 ### Restart And Retry Handling
 
@@ -182,6 +183,10 @@ POST /api/cleanup-runs
 ```
 
 with `dry_run=false` and `confirm_delete=true`.
+
+Cleanup records include both terminal-job counts and operational audit event counts.
+Use these counts to confirm the database retention policy is working, not only
+the upload/output file cleanup.
 
 Keep `cleanup-runs.jsonl` with the API data directory. It is the lightweight
 retention/deletion evidence for this MVP.
@@ -273,6 +278,8 @@ Use this lightweight flow for MVP incidents.
 
 - Keep audit exports for support cases according to your customer agreement.
 - Keep `cleanup-runs.jsonl` for internal audit history.
+- Keep operational audit events long enough for support and access-management
+  review, then remove old rows through the confirmed cleanup flow.
 - Do not keep raw user uploads longer than necessary for the active support or
   retention window.
 - Before public launch, have legal counsel review open-source license,

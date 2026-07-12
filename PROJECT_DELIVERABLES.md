@@ -48,7 +48,7 @@ wrapper:
 - Upload type/size limits and active queue limit.
 - Recent job status filtering for lightweight operations triage.
 - Cleanup run records, dry-run cleanup action, confirmed cleanup action, and
-  cleanup history view for retention/deletion evidence.
+  cleanup history view for job and operational-audit retention/deletion evidence.
 - GPU deployment, Docker Compose deployment, HTTPS reverse proxy templates, and
   smoke-test scripts.
 
@@ -72,7 +72,7 @@ wrapper:
 | API configuration | `src/api/config.py` | Centralizes data directory, Python/GPU settings, bootstrap API Key, upload and queue limits, per-owner active-job limit, and retry limit. |
 | Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands only for pending jobs, avoiding stale queue re-execution. |
 | SQLite job store | `src/api/storage.py` | Stores jobs, ownership, idempotency Keys, execution attempts, recovery/retry audit events, operational audit events, hashes, authorization metadata, and hashed managed API Key records. |
-| Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, appends cleanup run records, and reads recent cleanup records for operations review. |
+| Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs, old operational audit events, and job files; appends cleanup run records; and reads recent cleanup records for operations review. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
 ## Frontend Deliverables
@@ -109,7 +109,8 @@ wrapper:
 - Administrator-only owner filter for Recent jobs.
 - Authorization-reference JSON export from the Recent jobs panel.
 - Cleanup runs panel showing recent retention/deletion records.
-- Cleanup dry-run and confirmed delete controls for old terminal jobs.
+- Cleanup dry-run and confirmed delete controls for old terminal jobs and old
+  operational audit events.
 - Job detail panel with status, Job ID, filenames, authorization metadata,
   timestamps, input hashes, output hash, and failure reason.
 - Clear button for the current selected job.
@@ -136,7 +137,7 @@ wrapper:
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
-| API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs from API storage and records each run in `cleanup-runs.jsonl`. |
+| API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs and old operational audit events from API storage, then records each run in `cleanup-runs.jsonl`. |
 
 ## Documentation Deliverables
 
@@ -157,7 +158,7 @@ wrapper:
 | --- | --- | --- |
 | API service tests | `tests/test_api_service.py` | Covers frontend static assets, job creation, consent, API Key auth, result endpoint, audit export, authorization filters/export, cleanup run history/action, upload validation, and queue limit behavior. |
 | API storage tests | `tests/test_api_storage.py` | Covers SQLite job persistence, hashes, status transitions, audit records, and authorization metadata filters. |
-| API cleanup tests | `tests/test_api_cleanup.py` | Covers deletion behavior for old terminal jobs and cleanup run record reading. |
+| API cleanup tests | `tests/test_api_cleanup.py` | Covers deletion behavior for old terminal jobs, old operational audit events, and cleanup run record reading. |
 | Deployment script tests | `tests/test_deployment_scripts.py` | Covers deployment scripts, env templates, docs, auth checks, and smoke-job script expectations. |
 | GPU migration script tests | `tests/test_gpu_migration_scripts.py` | Covers GPU migration helper script expectations. |
 | Commercial cropper tests | `tests/test_commercial_mediapipe_cropper.py` | Covers the MediaPipe cropper path. |
@@ -177,7 +178,7 @@ python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-
 Latest known full test result:
 
 ```text
-60 passed
+62 passed
 Commercial safety scan passed.
 ```
 
@@ -185,6 +186,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `65abbad` | `feat: add operational audit trail` |
 | `3dc248b` | `chore: add https reverse proxy templates` |
 | `c7c5382` | `feat: add browser access management` |
 | `a46e366` | `feat: add resilient job retry handling` |

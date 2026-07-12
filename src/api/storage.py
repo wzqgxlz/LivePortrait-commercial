@@ -372,6 +372,22 @@ class JobStore:
             ).fetchall()
         return [_row_to_operational_audit_event(row) for row in rows]
 
+    def count_operational_audit_events_before(self, cutoff: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS total FROM operational_audit_events WHERE created_at < ?",
+                (cutoff,),
+            ).fetchone()
+        return int(row["total"])
+
+    def delete_operational_audit_events_before(self, cutoff: str) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM operational_audit_events WHERE created_at < ?",
+                (cutoff,),
+            )
+        return int(cursor.rowcount)
+
     def list_terminal_jobs_before(self, cutoff: str) -> list[JobRecord]:
         placeholders = ", ".join("?" for _ in TERMINAL_STATUSES)
         with self._connect() as conn:

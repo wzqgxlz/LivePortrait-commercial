@@ -15,6 +15,8 @@ class CleanupResult:
     deleted_jobs: int
     skipped_active_jobs: int
     removed_bytes: int
+    operational_audit_matched_events: int = 0
+    operational_audit_deleted_events: int = 0
     matched_job_ids: tuple[str, ...] = ()
     deleted_job_ids: tuple[str, ...] = ()
     cleanup_record_path: Path | None = None
@@ -34,6 +36,7 @@ def cleanup_finished_jobs(
     current_time = now or datetime.now(timezone.utc)
     cutoff = (current_time - timedelta(days=older_than_days)).isoformat()
     matched_jobs = store.list_terminal_jobs_before(cutoff)
+    operational_audit_matched_events = store.count_operational_audit_events_before(cutoff)
     active_jobs = [
         job
         for job in store.list_jobs()
@@ -53,12 +56,17 @@ def cleanup_finished_jobs(
             store.delete_job(job.job_id)
             deleted_jobs += 1
             deleted_job_ids.append(job.job_id)
+    operational_audit_deleted_events = (
+        0 if dry_run else store.delete_operational_audit_events_before(cutoff)
+    )
 
     result = CleanupResult(
         matched_jobs=len(matched_jobs),
         deleted_jobs=deleted_jobs,
         skipped_active_jobs=len(active_jobs),
         removed_bytes=removed_bytes,
+        operational_audit_matched_events=operational_audit_matched_events,
+        operational_audit_deleted_events=operational_audit_deleted_events,
         matched_job_ids=tuple(job.job_id for job in matched_jobs),
         deleted_job_ids=tuple(deleted_job_ids),
         cleanup_record_path=cleanup_record_path,
@@ -129,6 +137,8 @@ def _write_cleanup_record(
         "deleted_jobs": result.deleted_jobs,
         "skipped_active_jobs": result.skipped_active_jobs,
         "removed_bytes": result.removed_bytes,
+        "operational_audit_matched_events": result.operational_audit_matched_events,
+        "operational_audit_deleted_events": result.operational_audit_deleted_events,
         "matched_job_ids": list(result.matched_job_ids),
         "deleted_job_ids": list(result.deleted_job_ids),
     }

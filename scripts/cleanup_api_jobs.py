@@ -44,6 +44,8 @@ def main() -> int:
         f"deleted={result.deleted_jobs} "
         f"skipped_active={result.skipped_active_jobs} "
         f"removed_bytes={result.removed_bytes} "
+        f"operational_audit_matched={result.operational_audit_matched_events} "
+        f"operational_audit_deleted={result.operational_audit_deleted_events} "
         f"record={result.cleanup_record_path}"
     )
     return 0

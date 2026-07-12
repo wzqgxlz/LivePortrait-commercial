@@ -249,6 +249,8 @@ Pass/Fail Criteria:
 - [ ] Retention dry-run records `cleanup.dry_run`.
 - [ ] Failed-job retry records `job.retried` when a retry is performed.
 - [ ] Audit metadata does not contain raw API Key values.
+- [ ] Old operation records are included in cleanup dry-run counts after their
+  retention window expires.
 
 Pass/Fail Criteria:
 
@@ -270,10 +272,13 @@ Confirm:
 - [ ] Script prints `record=<...cleanup-runs.jsonl>`.
 - [ ] `<LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl` exists.
 - [ ] The newest JSON line records `dry_run=true`.
+- [ ] The newest JSON line includes `operational_audit_matched_events` and
+  `operational_audit_deleted_events`.
 
 Pass/Fail Criteria:
 
-- Pass: cleanup evidence is written without deleting active jobs.
+- Pass: cleanup evidence is written without deleting active jobs and reports
+  old operational audit event counts.
 - Fail: no cleanup record is produced.
 
 ## Evidence To Record

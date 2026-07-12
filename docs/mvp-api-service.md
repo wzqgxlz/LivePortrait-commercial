@@ -307,9 +307,10 @@ GET /api/cleanup-runs?limit=20
 
 Returns recent records from `<LIVEPORTRAIT_API_DATA_DIR>/cleanup-runs.jsonl` in
 newest-first order. Each record includes the cleanup timestamp, retention
-window, dry-run flag, matched/deleted/skipped counts, removed bytes, and matched
-or deleted job IDs. This endpoint is read-only and is protected by the API Key
-when `LIVEPORTRAIT_API_KEY` is set.
+window, dry-run flag, matched/deleted/skipped job counts, removed bytes, matched
+or deleted job IDs, and matched/deleted operational audit event counts. This
+endpoint is read-only and is protected by the API Key when
+`LIVEPORTRAIT_API_KEY` is set.
 
 ### Create Cleanup Run
 
@@ -369,9 +370,11 @@ Delete matched jobs:
 python scripts\cleanup_api_jobs.py --older-than-days 7
 ```
 
-The cleanup only removes jobs whose status is `succeeded` or `failed` and whose
+The cleanup removes jobs whose status is `succeeded` or `failed` and whose
 `updated_at` timestamp is older than the retention window. Jobs that are still
-`pending` or `running` are skipped.
+`pending` or `running` are skipped. The same retention window also applies to
+old rows in `operational_audit_events`; dry-run reports how many old operation
+records would be removed, and confirmed cleanup deletes them.
 
 Every cleanup run appends a JSON line to:
 
@@ -380,7 +383,8 @@ Every cleanup run appends a JSON line to:
 ```
 
 Each record includes the run timestamp, retention window, dry-run flag, matched
-job IDs, deleted job IDs, skipped active job count, and removed byte count.
+job IDs, deleted job IDs, skipped active job count, removed byte count, and
+matched/deleted operational audit event counts.
 The frontend and `GET /api/cleanup-runs?limit=20` can display the most recent
 records. The frontend cleanup controls run dry-run previews by default and ask
 for confirmation before sending a delete request.

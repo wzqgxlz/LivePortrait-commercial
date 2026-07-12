@@ -101,6 +101,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "loadCleanupRuns" in script_response.text
         assert "renderCleanupRuns" in script_response.text
         assert "runCleanup" in script_response.text
+        assert "operational_audit_matched_events" in script_response.text
+        assert "operational_audit_deleted_events" in script_response.text
         assert "loadOperationsAuditEvents" in script_response.text
         assert "renderOperationsAuditEvents" in script_response.text
         assert "summarizeMetadata" in script_response.text
@@ -638,8 +640,20 @@ def test_create_cleanup_run_dry_run_records_preview_without_deleting(tmp_path):
         result_path = data_dir / "jobs" / job_id / "outputs" / "result.jpg"
         result_path.parent.mkdir(parents=True)
         result_path.write_bytes(b"result")
+        audit_event = app.state.job_store.record_operational_audit_event(
+            actor_owner_id="bootstrap-admin",
+            actor_role="admin",
+            action="api_key.created",
+            target_type="api_key",
+            target_id="old-key",
+        )
         app.state.job_store.mark_succeeded(job_id, result_path)
         _set_job_updated_at(app.state.job_store.db_path, job_id, datetime.now(timezone.utc) - timedelta(days=10))
+        _set_operational_audit_created_at(
+            app.state.job_store.db_path,
+            audit_event.event_id,
+            datetime.now(timezone.utc) - timedelta(days=10),
+        )
 
         cleanup_response = client.post(
             "/api/cleanup-runs",
@@ -651,10 +665,13 @@ def test_create_cleanup_run_dry_run_records_preview_without_deleting(tmp_path):
         assert payload["matched_jobs"] == 1
         assert payload["deleted_jobs"] == 0
         assert payload["dry_run"] is True
+        assert payload["operational_audit_matched_events"] == 1
+        assert payload["operational_audit_deleted_events"] == 0
         assert app.state.job_store.get_job(job_id) is not None
         assert (data_dir / "jobs" / job_id).exists()
         records_response = client.get("/api/cleanup-runs?limit=1")
         assert records_response.json()["records"][0]["matched_job_ids"] == [job_id]
+        assert records_response.json()["records"][0]["operational_audit_matched_events"] == 1
 
 
 def test_create_cleanup_run_rejects_delete_without_confirmation(tmp_path):
@@ -1089,3 +1106,11 @@ def test_inference_runner_builds_humans_only_command(tmp_path):
 def _set_job_updated_at(db_path: Path, job_id: str, value: datetime) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE jobs SET updated_at = ? WHERE job_id = ?", (value.isoformat(), job_id))
+
+
+def _set_operational_audit_created_at(db_path: Path, event_id: int, value: datetime) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE operational_audit_events SET created_at = ? WHERE event_id = ?",
+            (value.isoformat(), event_id),
+        )

@@ -82,6 +82,41 @@ def test_job_store_records_operational_audit_events(tmp_path):
     assert actor_events[0].action == "job.retried"
 
 
+def test_job_store_deletes_operational_audit_events_before_cutoff(tmp_path):
+    from src.api.storage import JobStore
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    old_event = store.record_operational_audit_event(
+        actor_owner_id="admin",
+        actor_role="admin",
+        action="api_key.created",
+        target_type="api_key",
+        target_id="old-key",
+    )
+    fresh_event = store.record_operational_audit_event(
+        actor_owner_id="admin",
+        actor_role="admin",
+        action="api_key.revoked",
+        target_type="api_key",
+        target_id="fresh-key",
+    )
+    with sqlite3.connect(store.db_path) as conn:
+        conn.execute(
+            "UPDATE operational_audit_events SET created_at = ? WHERE event_id = ?",
+            ("2026-07-01T00:00:00+00:00", old_event.event_id),
+        )
+        conn.execute(
+            "UPDATE operational_audit_events SET created_at = ? WHERE event_id = ?",
+            ("2026-07-10T00:00:00+00:00", fresh_event.event_id),
+        )
+
+    cutoff = "2026-07-08T00:00:00+00:00"
+
+    assert store.count_operational_audit_events_before(cutoff) == 1
+    assert store.delete_operational_audit_events_before(cutoff) == 1
+    assert [event.target_id for event in store.list_operational_audit_events()] == ["fresh-key"]
+
+
 def test_job_store_records_audit_events_and_output_hash(tmp_path):
     from src.api.storage import JobStore
 
