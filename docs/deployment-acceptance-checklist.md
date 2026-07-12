@@ -43,17 +43,21 @@ git log -1 --oneline
 - [ ] Humans mode assets are present.
 - [ ] MediaPipe detector asset is present.
 - [ ] Commercial safety scan passes.
+- [ ] Deployment preflight passes.
 
 Command:
 
 ```bash
+python scripts/check_deployment_preflight.py
 python scripts/commercial_safety_scan.py
 ```
 
 Pass/Fail Criteria:
 
 - Pass: scan exits successfully and prints `Commercial safety scan passed.`
-- Fail: any blocked InsightFace path or reference is detected.
+- Fail: any blocked InsightFace path/reference is detected, required assets are
+  missing, required imports fail, API environment is unsafe, or CUDA is
+  unavailable on the GPU machine.
 
 ### 3. GPU Runtime
 

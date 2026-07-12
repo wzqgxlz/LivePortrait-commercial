@@ -349,6 +349,7 @@ Run these checks on the deployment machine:
 
 ```powershell
 python scripts\download_humans_assets.py
+python scripts\check_deployment_preflight.py --skip-gpu
 python scripts\commercial_safety_scan.py
 python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercial_safety_guardrails.py tests/test_gpu_migration_scripts.py tests/test_api_service.py tests/test_api_cleanup.py -q
 ```

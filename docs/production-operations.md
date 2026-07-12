@@ -45,6 +45,7 @@ python scripts/commercial_safety_scan.py
 Run the focused checks:
 
 ```bash
+python scripts/check_deployment_preflight.py
 python -m pytest tests/test_api_service.py tests/test_api_cleanup.py tests/test_api_storage.py tests/test_deployment_scripts.py -q
 python scripts/check_api_deployment.py --base-url http://127.0.0.1:8000 --api-key "$LIVEPORTRAIT_API_KEY"
 ```

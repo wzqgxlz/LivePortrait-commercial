@@ -40,6 +40,8 @@ wrapper:
   evidence packages.
 - Non-GPU local product workflow acceptance script and recorded acceptance
   evidence.
+- Deployment preflight script for Python, dependency, model, MediaPipe,
+  commercial-safety, API environment, and CUDA readiness checks.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
   pending work, and interruption audit events.
 - Source image authorization confirmation.
@@ -139,6 +141,7 @@ wrapper:
 | Docker build ignore file | `.dockerignore` | Keeps local virtualenvs, temp files, outputs, and model caches out of container build context. |
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
 | Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, operations audit export protection, cleanup run history protection, and cleanup action protection. |
+| Deployment preflight script | `scripts/check_deployment_preflight.py` | Checks Python version, repository files, Humans mode weights, MediaPipe detector model, blocked commercial-risk paths, commercial safety scan, API environment, package imports, and CUDA availability before deployment. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Local product workflow check | `scripts/check_local_product_workflow.py` | Runs a non-GPU in-process acceptance workflow for auth, Key issuance/revocation, user job submission, idempotency, retry, cleanup dry-run, and operational audit export. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
@@ -178,6 +181,7 @@ Recent checkpoints have been verified with:
 ```powershell
 python -m pytest -q
 python scripts\commercial_safety_scan.py
+python scripts\check_deployment_preflight.py --skip-gpu --skip-imports --allow-missing-api-key
 node --check src\api\static\app.js
 python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-key test-key
 python scripts\check_local_product_workflow.py
@@ -186,7 +190,7 @@ python scripts\check_local_product_workflow.py
 Latest known full test result:
 
 ```text
-64 passed
+65 passed
 Commercial safety scan passed.
 ```
 
@@ -194,6 +198,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `49402f9` | `docs: add local product workflow acceptance` |
 | `95ae98f` | `feat: add operational audit export` |
 | `f815add` | `feat: add operational audit retention cleanup` |
 | `65abbad` | `feat: add operational audit trail` |

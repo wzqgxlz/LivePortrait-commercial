@@ -23,6 +23,7 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "LIVEPORTRAIT_API_KEY" in doc
     assert "scripts/start_gpu_api_server.sh" in doc
     assert "scripts/check_api_deployment.py" in doc
+    assert "scripts/check_deployment_preflight.py" in doc
     assert "scripts/cleanup_api_jobs.py --older-than-days 7" in doc
     assert "cleanup-runs.jsonl" in doc
     assert "python scripts/download_humans_assets.py" in doc
@@ -32,6 +33,8 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "deploy/Caddyfile.example" in doc
     assert "https://liveportrait.example.com/" in doc
     assert "operations audit export endpoint" in doc
+    assert "CUDA" in doc
+    assert "PyTorch" in doc
 
 
 def test_deployment_env_template_contains_safe_defaults():
@@ -149,6 +152,23 @@ def test_local_product_workflow_script_checks_non_gpu_product_shell():
     assert "raw_user_key_leaked" in script
 
 
+def test_deployment_preflight_script_checks_environment_assets_and_safety():
+    script = Path("scripts/check_deployment_preflight.py").read_text(encoding="utf-8")
+
+    assert "REQUIRED_MODEL_FILES" in script
+    assert "pretrained_weights" in script
+    assert "blaze_face_short_range.tflite" in script
+    assert "commercial.safety_scan" in script
+    assert "commercial.blocked_paths" in script
+    assert "LIVEPORTRAIT_API_KEY" in script
+    assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER" in script
+    assert "REQUIRED_IMPORTS" in script
+    assert "torch.cuda.is_available" in script
+    assert "--skip-gpu" in script
+    assert "--skip-imports" in script
+    assert "--allow-missing-api-key" in script
+
+
 def test_local_product_workflow_acceptance_record_documents_result():
     doc = Path("docs/local-product-workflow-acceptance-2026-07-12.md").read_text(encoding="utf-8")
     mvp_doc = Path("docs/mvp-api-service.md").read_text(encoding="utf-8")
@@ -163,6 +183,7 @@ def test_local_product_workflow_acceptance_record_documents_result():
     assert "GPU validation remains" in doc
     assert "separate acceptance stage" in doc
     assert "scripts\\check_local_product_workflow.py" in mvp_doc
+    assert "scripts\\check_deployment_preflight.py" in mvp_doc
     assert "docs/local-product-workflow-acceptance-2026-07-12.md" in mvp_doc
     assert "scripts/check_local_product_workflow.py" in deliverables
     assert "docs/local-product-workflow-acceptance-2026-07-12.md" in deliverables
@@ -201,6 +222,7 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "Operations Audit" in doc
     assert "GET /api/admin/audit-events/export" in doc
     assert "operational audit event counts" in doc
+    assert "python scripts/check_deployment_preflight.py" in doc
 
 
 def test_deployment_acceptance_checklist_covers_evidence_and_failures():
@@ -210,6 +232,7 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "Evidence To Record" in doc
     assert "Pass/Fail Criteria" in doc
     assert "scripts/check_api_deployment.py" in doc
+    assert "scripts/check_deployment_preflight.py" in doc
     assert "scripts/smoke_api_job.py" in doc
     assert "output_sha256" in doc
     assert "Rollback" in doc
@@ -229,6 +252,7 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "api_key.created" in doc
     assert "job.retried" in doc
     assert "operational_audit_matched_events" in doc
+    assert "Deployment preflight passes" in doc
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():

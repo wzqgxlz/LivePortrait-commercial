@@ -70,8 +70,22 @@ The deployment must not contain `pretrained_weights/insightface`.
 Run the focused API and deployment checks:
 
 ```bash
+python scripts/check_deployment_preflight.py --skip-gpu --allow-missing-api-key
 python -m pytest tests/test_api_service.py tests/test_api_cleanup.py tests/test_deployment_scripts.py -q
 ```
+
+Before exposing the service on a GPU machine, run the strict preflight with the
+real deployment environment variables set:
+
+```bash
+export LIVEPORTRAIT_API_KEY="replace-with-a-long-random-secret"
+python scripts/check_deployment_preflight.py
+```
+
+The preflight checks Python version, required repository files, Humans mode
+weights, the MediaPipe detector model, blocked commercial-risk paths, the
+commercial safety scan, API environment values, Python package imports, and CUDA
+availability through PyTorch. Use `--skip-gpu` only on non-GPU machines.
 
 For a GPU regression pass, run:
 
