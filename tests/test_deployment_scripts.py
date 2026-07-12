@@ -133,6 +133,41 @@ def test_api_job_smoke_script_submits_polls_and_downloads_result():
     assert "x-api-key" in script
 
 
+def test_local_product_workflow_script_checks_non_gpu_product_shell():
+    script = Path("scripts/check_local_product_workflow.py").read_text(encoding="utf-8")
+
+    assert "create_app" in script
+    assert "enqueue_jobs=False" in script
+    assert "run_startup_checks=False" in script
+    assert "/api/admin/api-keys" in script
+    assert "x-idempotency-key" in script
+    assert "/api/jobs/{created_job['job_id']}/export" in script
+    assert "/api/admin/audit-events/export" in script
+    assert "api_key.created" in script
+    assert "job.retried" in script
+    assert "cleanup.dry_run" in script
+    assert "raw_user_key_leaked" in script
+
+
+def test_local_product_workflow_acceptance_record_documents_result():
+    doc = Path("docs/local-product-workflow-acceptance-2026-07-12.md").read_text(encoding="utf-8")
+    mvp_doc = Path("docs/mvp-api-service.md").read_text(encoding="utf-8")
+    deliverables = Path("PROJECT_DELIVERABLES.md").read_text(encoding="utf-8")
+
+    assert "python scripts\\check_local_product_workflow.py" in doc
+    assert "status" in doc
+    assert "passed" in doc
+    assert "raw_user_key_leaked" in doc
+    assert "false" in doc
+    assert "liveportrait-operational-audit-export-v1" in doc
+    assert "GPU validation remains" in doc
+    assert "separate acceptance stage" in doc
+    assert "scripts\\check_local_product_workflow.py" in mvp_doc
+    assert "docs/local-product-workflow-acceptance-2026-07-12.md" in mvp_doc
+    assert "scripts/check_local_product_workflow.py" in deliverables
+    assert "docs/local-product-workflow-acceptance-2026-07-12.md" in deliverables
+
+
 def test_cleanup_script_records_cleanup_runs():
     script = Path("scripts/cleanup_api_jobs.py").read_text(encoding="utf-8")
     cleanup = Path("src/api/cleanup.py").read_text(encoding="utf-8")

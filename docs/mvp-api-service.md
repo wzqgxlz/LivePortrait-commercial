@@ -355,6 +355,17 @@ python -m pytest tests/test_commercial_mediapipe_cropper.py tests/test_commercia
 
 The service must not start with `pretrained_weights/insightface` present.
 
+For a non-GPU product-shell acceptance check, run:
+
+```powershell
+python scripts\check_local_product_workflow.py
+```
+
+This verifies administrator Key issuance, user job submission, idempotency,
+job audit export, failed-job retry, cleanup dry-run, Key revocation, and
+operational audit export without running inference. The latest recorded result
+is in `docs/local-product-workflow-acceptance-2026-07-12.md`.
+
 ## Job Cleanup
 
 API uploads and outputs are stored under `LIVEPORTRAIT_API_DATA_DIR`. Use the

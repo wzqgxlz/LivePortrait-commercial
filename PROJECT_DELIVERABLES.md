@@ -38,6 +38,8 @@ wrapper:
   and failed-job retries.
 - Administrator operational audit JSON export for internal review and customer
   evidence packages.
+- Non-GPU local product workflow acceptance script and recorded acceptance
+  evidence.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
   pending work, and interruption audit events.
 - Source image authorization confirmation.
@@ -138,6 +140,7 @@ wrapper:
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
 | Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, operations audit export protection, cleanup run history protection, and cleanup action protection. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
+| Local product workflow check | `scripts/check_local_product_workflow.py` | Runs a non-GPU in-process acceptance workflow for auth, Key issuance/revocation, user job submission, idempotency, retry, cleanup dry-run, and operational audit export. |
 | Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
 | API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs and old operational audit events from API storage, then records each run in `cleanup-runs.jsonl`. |
@@ -152,6 +155,7 @@ wrapper:
 | Deployment acceptance checklist | `docs/deployment-acceptance-checklist.md` | Unified systemd/Docker Compose acceptance stages, runtime evidence table, pass/fail criteria, smoke-job validation, cleanup evidence, and rollback steps. |
 | Production operations guide | `docs/production-operations.md` | Launch checklist, daily operations, support export, cleanup evidence, incident response, and MVP limitations. |
 | Content safety and authorization workflow | `docs/content-safety-authorization-workflow.md` | MVP workflow for authorization records, content review, prohibited uses, manual review, support export, and retention. |
+| Local product workflow acceptance record | `docs/local-product-workflow-acceptance-2026-07-12.md` | Non-GPU acceptance evidence for administrator access, user workflow, audit export, retry, cleanup dry-run, and operational audit export. |
 | Humans regression record | `docs/humans-mediapipe-regression-2026-07-08.md` | Recorded Humans mode MediaPipe regression notes. |
 | Commercial migration plan | `docs/superpowers/plans/2026-07-08-commercial-mediapipe-cropper.md` | Implementation plan used for the commercial-safe MediaPipe migration. |
 
@@ -176,12 +180,13 @@ python -m pytest -q
 python scripts\commercial_safety_scan.py
 node --check src\api\static\app.js
 python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-key test-key
+python scripts\check_local_product_workflow.py
 ```
 
 Latest known full test result:
 
 ```text
-62 passed
+64 passed
 Commercial safety scan passed.
 ```
 
@@ -189,6 +194,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `95ae98f` | `feat: add operational audit export` |
 | `f815add` | `feat: add operational audit retention cleanup` |
 | `65abbad` | `feat: add operational audit trail` |
 | `3dc248b` | `chore: add https reverse proxy templates` |
