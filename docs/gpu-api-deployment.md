@@ -191,6 +191,7 @@ This checks:
 - that the recent job list rejects requests without `x-api-key`
 - that the audit endpoint rejects requests without `x-api-key`
 - that the audit export endpoint rejects requests without `x-api-key`
+- that the operations audit export endpoint rejects requests without `x-api-key`
 - that the configured API Key reaches the job endpoint
 
 When HTTPS is configured, rerun the check against the public domain:

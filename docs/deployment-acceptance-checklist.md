@@ -244,6 +244,7 @@ Pass/Fail Criteria:
 ### 10. Operations Audit
 
 - [ ] `GET /api/admin/audit-events?limit=20` returns recent operational events.
+- [ ] `GET /api/admin/audit-events/export` downloads a JSON operational audit package.
 - [ ] Creating a test personal Key records `api_key.created`.
 - [ ] Revoking that test personal Key records `api_key.revoked`.
 - [ ] Retention dry-run records `cleanup.dry_run`.
@@ -255,7 +256,7 @@ Pass/Fail Criteria:
 Pass/Fail Criteria:
 
 - Pass: administrator and support actions are traceable without exposing
-  secrets.
+  secrets, and the export can be preserved as evidence.
 - Fail: management actions are missing, non-admin users can read the endpoint,
   or raw API Keys appear in audit metadata.
 

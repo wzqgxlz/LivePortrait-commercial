@@ -151,6 +151,38 @@ def create_app(
             ]
         }
 
+    @app.get("/api/admin/audit-events/export")
+    def export_operational_audit_events(
+        limit: int = Query(200, ge=1, le=1000),
+        action: str | None = Query(default=None),
+        actor_owner_id: str | None = Query(default=None),
+        _: Principal = Depends(require_admin),
+    ) -> JSONResponse:
+        action_filter = _clean_optional_form_value(action)
+        actor_filter = _clean_optional_form_value(actor_owner_id)
+        events = store.list_operational_audit_events(
+            limit=limit,
+            action=action_filter,
+            actor_owner_id=actor_filter,
+        )
+        payload = {
+            "export_version": "liveportrait-operational-audit-export-v1",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "filters": {
+                "limit": limit,
+                "action": action_filter,
+                "actor_owner_id": actor_filter,
+            },
+            "events": [_operational_audit_event_payload(event) for event in events],
+        }
+        suffix = _safe_filename(action_filter or actor_filter or "all").replace(" ", "_")
+        return JSONResponse(
+            payload,
+            headers={
+                "Content-Disposition": f'attachment; filename="liveportrait-operations-audit-{suffix}.json"'
+            },
+        )
+
     @app.get("/api/whoami")
     def whoami(principal: Principal = Depends(require_principal)) -> Dict[str, object]:
         return {

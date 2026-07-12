@@ -30,6 +30,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _check_audit_auth_guard(base_url),
         _check_export_auth_guard(base_url),
         _check_authorization_export_auth_guard(base_url),
+        _check_operations_audit_export_auth_guard(base_url),
         _check_cleanup_runs_auth_guard(base_url),
         _check_cleanup_create_auth_guard(base_url),
     ]
@@ -99,6 +100,13 @@ def _check_authorization_export_auth_guard(base_url: str) -> tuple[bool, str]:
     if result.status == 401:
         return True, "Authorization export endpoint rejects requests without x-api-key."
     return False, f"Authorization export endpoint should reject requests without x-api-key, got HTTP {result.status}."
+
+
+def _check_operations_audit_export_auth_guard(base_url: str) -> tuple[bool, str]:
+    result = _get(f"{base_url}/api/admin/audit-events/export")
+    if result.status == 401:
+        return True, "Operations audit export endpoint rejects requests without x-api-key."
+    return False, f"Operations audit export endpoint should reject requests without x-api-key, got HTTP {result.status}."
 
 
 def _check_cleanup_runs_auth_guard(base_url: str) -> tuple[bool, str]:

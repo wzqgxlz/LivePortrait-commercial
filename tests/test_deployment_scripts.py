@@ -31,6 +31,7 @@ def test_gpu_api_deployment_doc_mentions_frontend_and_cleanup():
     assert "deploy/nginx-liveportrait-api.conf" in doc
     assert "deploy/Caddyfile.example" in doc
     assert "https://liveportrait.example.com/" in doc
+    assert "operations audit export endpoint" in doc
 
 
 def test_deployment_env_template_contains_safe_defaults():
@@ -109,6 +110,7 @@ def test_deployment_check_script_verifies_health_frontend_and_auth():
     assert "/api/whoami" in script
     assert "/api/jobs?limit=1" in script
     assert "/api/authorization-records/export" in script
+    assert "/api/admin/audit-events/export" in script
     assert "/api/cleanup-runs?limit=1" in script
     assert "_post_json" in script
     assert "Cleanup create endpoint rejects requests without x-api-key" in script
@@ -162,6 +164,7 @@ def test_production_operations_doc_covers_launch_and_support_workflows():
     assert "Reverse Proxy Or HTTPS Failure" in doc
     assert "GET /api/admin/audit-events" in doc
     assert "Operations Audit" in doc
+    assert "GET /api/admin/audit-events/export" in doc
     assert "operational audit event counts" in doc
 
 
@@ -187,6 +190,7 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "deploy/Caddyfile.example" in doc
     assert "https://liveportrait.example.com" in doc
     assert "Operations Audit" in doc
+    assert "GET /api/admin/audit-events/export" in doc
     assert "api_key.created" in doc
     assert "job.retried" in doc
     assert "operational_audit_matched_events" in doc

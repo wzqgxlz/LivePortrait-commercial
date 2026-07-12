@@ -130,13 +130,16 @@ Use the administrator endpoint when you need to review management actions:
 ```http
 GET /api/admin/audit-events?limit=50
 GET /api/admin/audit-events?action=api_key.revoked
+GET /api/admin/audit-events/export?action=api_key.revoked
 ```
 
 The audit includes the actor owner, actor Key ID when available, role, action,
 target type, target ID, metadata, and timestamp. It records managed Key creation
 and revocation, cleanup dry-runs/deletions, and failed-job retries. It stores
 non-secret Key prefixes only, never raw API Key values. Old operational audit
-rows follow the same cleanup retention window as old terminal jobs.
+rows follow the same cleanup retention window as old terminal jobs. Use the
+export endpoint or frontend `Export audit` button when internal review needs a
+point-in-time JSON evidence package.
 
 ### Restart And Retry Handling
 

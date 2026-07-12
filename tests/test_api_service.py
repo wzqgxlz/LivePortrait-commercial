@@ -67,6 +67,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="operations-audit-panel"' in page_response.text
         assert 'id="operations-audit-action-filter"' in page_response.text
         assert 'id="operations-audit-list"' in page_response.text
+        assert 'id="export-operations-audit"' in page_response.text
         assert 'id="refresh-operations-audit"' in page_response.text
         assert 'id="authorization-basis"' in page_response.text
         assert 'id="authorization-reference"' in page_response.text
@@ -105,8 +106,10 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "operational_audit_deleted_events" in script_response.text
         assert "loadOperationsAuditEvents" in script_response.text
         assert "renderOperationsAuditEvents" in script_response.text
+        assert "exportOperationsAuditEvents" in script_response.text
         assert "summarizeMetadata" in script_response.text
         assert "/api/admin/audit-events" in script_response.text
+        assert "/api/admin/audit-events/export" in script_response.text
         assert "loadAccessProfile" in script_response.text
         assert "sessionStorage" in script_response.text
         assert "createIdempotencyKey" in script_response.text
@@ -822,6 +825,7 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         )
         cleanup_runs_response = client.get("/api/cleanup-runs")
         audit_events_response = client.get("/api/admin/audit-events")
+        audit_events_export_response = client.get("/api/admin/audit-events/export")
         cleanup_create_response = client.post(
             "/api/cleanup-runs",
             json={"older_than_days": 7, "dry_run": True},
@@ -832,6 +836,7 @@ def test_api_key_protects_job_endpoints_when_configured(tmp_path):
         assert authorization_export_response.status_code == 401
         assert cleanup_runs_response.status_code == 401
         assert audit_events_response.status_code == 401
+        assert audit_events_export_response.status_code == 401
         assert cleanup_create_response.status_code == 401
 
 
@@ -1013,12 +1018,21 @@ def test_operational_audit_records_admin_and_retry_actions(tmp_path):
         )
         revoke_response = client.post(f"/api/admin/api-keys/{key_id}/revoke", headers=admin_headers)
         audit_response = client.get("/api/admin/audit-events?limit=10", headers=admin_headers)
+        audit_export_response = client.get(
+            "/api/admin/audit-events/export?action=api_key.created",
+            headers=admin_headers,
+        )
         user_audit_response = client.get("/api/admin/audit-events", headers={"x-api-key": user_key})
+        user_audit_export_response = client.get(
+            "/api/admin/audit-events/export",
+            headers={"x-api-key": user_key},
+        )
 
         assert retry_response.status_code == 202
         assert cleanup_response.status_code == 201
         assert revoke_response.status_code == 200
         assert user_audit_response.status_code == 401
+        assert user_audit_export_response.status_code == 401
 
         events = audit_response.json()["events"]
         actions = [event["action"] for event in events]
@@ -1037,6 +1051,14 @@ def test_operational_audit_records_admin_and_retry_actions(tmp_path):
         assert retry_event["actor_owner_id"] == "audited-user"
         assert retry_event["target_id"] == job_id
         assert cleanup_event["metadata"]["dry_run"] is True
+
+        export_payload = audit_export_response.json()
+        assert audit_export_response.status_code == 200
+        assert "attachment" in audit_export_response.headers["content-disposition"]
+        assert export_payload["export_version"] == "liveportrait-operational-audit-export-v1"
+        assert export_payload["filters"]["action"] == "api_key.created"
+        assert [event["action"] for event in export_payload["events"]] == ["api_key.created"]
+        assert user_key not in str(export_payload)
 
 
 def test_result_endpoint_returns_completed_output(tmp_path):

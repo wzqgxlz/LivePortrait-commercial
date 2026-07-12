@@ -51,6 +51,7 @@
   const operationsAuditPanel = document.getElementById("operations-audit-panel");
   const operationsAuditList = document.getElementById("operations-audit-list");
   const operationsAuditActionFilter = document.getElementById("operations-audit-action-filter");
+  const exportOperationsAuditButton = document.getElementById("export-operations-audit");
   const refreshOperationsAuditButton = document.getElementById("refresh-operations-audit");
   const sourceRules = {
     label: "Source image",
@@ -74,6 +75,7 @@
   let currentResultUrl = null;
   let currentAuditUrl = null;
   let currentAuthorizationExportUrl = null;
+  let currentOperationsAuditExportUrl = null;
   let maxUploadBytes = null;
   let currentJobId = null;
   let pendingSubmissionKey = null;
@@ -116,6 +118,7 @@
   cleanupDeleteButton.addEventListener("click", () => runCleanup(false));
   refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
   operationsAuditActionFilter.addEventListener("change", loadOperationsAuditEvents);
+  exportOperationsAuditButton.addEventListener("click", exportOperationsAuditEvents);
   refreshOperationsAuditButton.addEventListener("click", loadOperationsAuditEvents);
   clearResultButton.addEventListener("click", clearCurrentJob);
   retryJobButton.addEventListener("click", retryCurrentJob);
@@ -491,6 +494,40 @@
       metadata.textContent = summarizeMetadata(event.metadata);
       item.append(main, meta, metadata);
       operationsAuditList.appendChild(item);
+    }
+  }
+
+  async function exportOperationsAuditEvents() {
+    try {
+      exportOperationsAuditButton.disabled = true;
+      const query = new URLSearchParams({ limit: "200" });
+      const action = operationsAuditActionFilter.value.trim();
+      if (action) {
+        query.set("action", action);
+      }
+      const response = await fetch("/api/admin/audit-events/export?" + query.toString(), {
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Operations audit export failed");
+      }
+      if (currentOperationsAuditExportUrl) {
+        URL.revokeObjectURL(currentOperationsAuditExportUrl);
+      }
+      currentOperationsAuditExportUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      }));
+      const suffix = safeDownloadName(action || "all");
+      const link = document.createElement("a");
+      link.href = currentOperationsAuditExportUrl;
+      link.download = "liveportrait-operations-audit-" + suffix + ".json";
+      link.click();
+      details.textContent = "Operations audit export downloaded.";
+    } catch (error) {
+      details.textContent = error.message;
+    } finally {
+      exportOperationsAuditButton.disabled = false;
     }
   }
 

@@ -68,6 +68,7 @@ Protected endpoints:
 - `POST /api/admin/api-keys` (administrator only)
 - `POST /api/admin/api-keys/{key_id}/revoke` (administrator only)
 - `GET /api/admin/audit-events` (administrator only)
+- `GET /api/admin/audit-events/export` (administrator only)
 
 Public endpoint:
 
@@ -128,7 +129,9 @@ Administrator and operational actions are recorded in
 `operational_audit_events`. The Operations audit panel and
 `GET /api/admin/audit-events` show recent actions such as `api_key.created`,
 `api_key.revoked`, `cleanup.dry_run`, `cleanup.deleted`, and `job.retried`.
-Audit metadata never stores raw API Key secrets.
+Use `GET /api/admin/audit-events/export` or the frontend `Export audit` button
+to download a JSON package for the current action filter. Audit metadata never
+stores raw API Key secrets.
 
 List Keys without exposing secrets:
 
