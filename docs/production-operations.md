@@ -33,6 +33,7 @@ python scripts/commercial_safety_scan.py
   - `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES=209715200`
   - `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS=20`
   - `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER=3`
+  - `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB=2`
 - Keep `LIVEPORTRAIT_API_KEY` as the bootstrap administrator Key; issue each
   tester/customer a separate personal Key instead of sharing it.
 - Start the API behind HTTPS before any public network access.
@@ -110,6 +111,17 @@ GET /api/jobs?authorization_reference=CRM-2026-0001
 
 The frontend exposes the same job-status, authorization-status, and
 authorization-reference filters in the Recent jobs section.
+
+### Restart And Retry Handling
+
+- After a planned or unplanned API restart, `pending` jobs are requeued.
+- Jobs that were `running` during the restart become `failed` with an
+  `interrupted` audit event. Review the job, then use
+  `POST /api/jobs/{job_id}/retry` if a new execution is appropriate.
+- The retry keeps the same job ID and audit history. Do not create a duplicate
+  upload for a simple retry.
+- API clients should send a distinct `x-idempotency-key` for every new logical
+  submission. Repeat requests with the same Key return the original job.
 
 ### Cleanup
 
@@ -210,6 +222,8 @@ Use this lightweight flow for MVP incidents.
 - Restart the service during a maintenance window.
 - Review `GET /api/jobs?status=running` and `GET /api/jobs?status=pending`.
 - Keep failed job exports for debugging before cleanup.
+- Lower `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB` if repeated failures are creating
+  avoidable pressure.
 
 ### Disk Pressure
 

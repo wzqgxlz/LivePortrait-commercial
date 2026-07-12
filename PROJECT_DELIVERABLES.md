@@ -32,6 +32,8 @@ wrapper:
 - API Key protection.
 - Managed personal API Keys with administrator issue/revoke operations, task
   ownership isolation, and per-owner active-job limits.
+- Idempotent job submission, bounded failed-job retries, restart recovery for
+  pending work, and interruption audit events.
 - Source image authorization confirmation.
 - Lightweight authorization metadata capture for basis, reference, reviewer,
   and review status.
@@ -61,10 +63,10 @@ wrapper:
 
 | Artifact | Path | Purpose |
 | --- | --- | --- |
-| FastAPI application | `src/api/app.py` | Serves the frontend and API endpoints for managed API Key issue/revoke, authenticated identity, owner-isolated jobs, status, result, audit, exports, cleanup operations, and health checks. |
-| API configuration | `src/api/config.py` | Centralizes environment-driven settings: data directory, Python executable, CPU/GPU mode, bootstrap API Key, upload limit, global active-job limit, and per-owner active-job limit. |
-| Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands from API jobs. |
-| SQLite job store | `src/api/storage.py` | Stores jobs, ownership, statuses, hashes, authorization metadata, audit events, output metadata, and hashed managed API Key records. |
+| FastAPI application | `src/api/app.py` | Serves managed API Key, owner-isolated job, idempotent submit, retry, restart-recovery, audit, export, cleanup, and health endpoints. |
+| API configuration | `src/api/config.py` | Centralizes data directory, Python/GPU settings, bootstrap API Key, upload and queue limits, per-owner active-job limit, and retry limit. |
+| Inference runner | `src/api/runner.py` | Builds and runs Humans mode inference commands only for pending jobs, avoiding stale queue re-execution. |
+| SQLite job store | `src/api/storage.py` | Stores jobs, ownership, idempotency Keys, execution attempts, recovery/retry audit events, hashes, authorization metadata, and hashed managed API Key records. |
 | Cleanup helper | `src/api/cleanup.py` | Deletes old terminal jobs and their files, appends cleanup run records, and reads recent cleanup records for operations review. |
 | API package marker | `src/api/__init__.py` | Makes the API folder importable for `uvicorn src.api.app:app`. |
 
@@ -73,7 +75,7 @@ wrapper:
 | Artifact | Path | Purpose |
 | --- | --- | --- |
 | Minimal upload page | `src/api/static/index.html` | Browser UI for personal access Key entry, source/driving upload, authorization metadata, consent confirmation, job status, result preview, recent jobs, authorization filters, grouped authorization export, administrator-only cleanup controls, cleanup history, and job details. |
-| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, client-side upload validation, identity-aware UI, job submission, polling, result download, exports, owner-isolated recent jobs, and administrator cleanup controls. |
+| Frontend behavior | `src/api/static/app.js` | Handles session-only personal Key storage, generated idempotency Keys, failed-job retry, identity-aware UI, polling, downloads, exports, owner-isolated recent jobs, and administrator cleanup controls. |
 | Frontend styles | `src/api/static/styles.css` | Provides responsive layout, upload boxes, authorization fields, inline errors, job status chips, result preview, authorization filter controls, cleanup run rows, and job detail styling. |
 
 ## Frontend Features Delivered
@@ -83,6 +85,7 @@ wrapper:
 - Personal API Key stored only for the current browser session.
 - Administrator Key issuance/revocation API with database hashes only.
 - User/admin roles, task ownership isolation, and per-owner active-job limit.
+- Idempotent submit, attempt count, failed-job retry, and restart interruption handling.
 - Source authorization checkbox before submission.
 - Optional authorization metadata fields for basis, reference, reviewer, and
   review status.
@@ -170,6 +173,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `3671876` | `feat: add managed api key access control` |
 | `bc9dca9` | `docs: expand deployment acceptance checklist` |
 | `0c492d4` | `chore: add docker api deployment` |
 | `3e4b3f4` | `feat: add confirmed cleanup action` |

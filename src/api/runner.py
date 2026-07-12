@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import ApiConfig
-from .storage import JobRecord, JobStore
+from .storage import PENDING, JobRecord, JobStore
 
 
 class InferenceRunner:
@@ -30,7 +30,7 @@ class InferenceRunner:
 
     def run_job(self, store: JobStore, job_id: str) -> None:
         job = store.get_job(job_id)
-        if job is None:
+        if job is None or job.status != PENDING:
             return
 
         store.mark_running(job_id)
@@ -66,4 +66,3 @@ def find_result_file(output_dir: Path) -> Optional[Path]:
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
-

@@ -14,6 +14,7 @@ class ApiConfig:
     max_upload_bytes: int = 200 * 1024 * 1024
     max_active_jobs: int = 20
     max_active_jobs_per_owner: int = 3
+    max_retries_per_job: int = 2
     force_cpu: bool = False
     api_key: str | None = None
 
@@ -31,6 +32,7 @@ class ApiConfig:
             max_active_jobs_per_owner=int(
                 os.environ.get("LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER", 3)
             ),
+            max_retries_per_job=int(os.environ.get("LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB", 2)),
             force_cpu=force_cpu,
             api_key=api_key,
         )

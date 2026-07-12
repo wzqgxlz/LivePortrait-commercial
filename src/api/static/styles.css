@@ -289,6 +289,12 @@ button:disabled {
   line-height: 1.2;
 }
 
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: minmax(92px, 0.36fr) minmax(0, 1fr);

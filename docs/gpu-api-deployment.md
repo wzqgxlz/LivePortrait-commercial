@@ -93,6 +93,7 @@ export LIVEPORTRAIT_API_FORCE_CPU="0"
 export LIVEPORTRAIT_API_MAX_UPLOAD_BYTES="209715200"
 export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS="20"
 export LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER="3"
+export LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB="2"
 ```
 
 You can also start from the template:
@@ -126,6 +127,12 @@ load testing. It counts jobs that are still `pending` or `running` and rejects
 new uploads with `429` when the queue is full. The default upload limit is
 200 MB per file. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER` separately limits
 each personal Key owner; the default is three active jobs.
+
+After a service restart, jobs that were still `pending` are safely requeued.
+Jobs that had already reached `running` are marked `failed` with an interruption
+audit event and require an explicit retry, preventing an unobserved duplicate
+generation. The default `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB=2` permits two
+retries after the initial execution attempt.
 
 ## 5. Check Deployment
 

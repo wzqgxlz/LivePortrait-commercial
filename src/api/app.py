@@ -2,6 +2,7 @@
 
 import shutil
 import secrets
+import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,7 +10,7 @@ from pathlib import Path
 from queue import Queue
 from typing import Dict
 
-from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -97,10 +98,15 @@ def create_app(
             raise HTTPException(status_code=403, detail="administrator API key is required")
         return principal
 
+    startup_recovery = {"requeued_job_ids": [], "interrupted_job_ids": []}
     if enqueue_jobs:
+        startup_recovery = store.recover_incomplete_jobs()
         worker = threading.Thread(target=_worker_loop, args=(queue, store, runner), daemon=True)
         worker.start()
         app.state.worker = worker
+        for job_id in startup_recovery["requeued_job_ids"]:
+            queue.put(job_id)
+    app.state.startup_recovery = startup_recovery
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -115,7 +121,12 @@ def create_app(
             "max_upload_bytes": cfg.max_upload_bytes,
             "max_active_jobs": cfg.max_active_jobs,
             "max_active_jobs_per_owner": cfg.max_active_jobs_per_owner,
+            "max_retries_per_job": cfg.max_retries_per_job,
             "authentication_required": cfg.api_key is not None or store.has_api_keys(),
+            "startup_recovery": {
+                "requeued_jobs": len(startup_recovery["requeued_job_ids"]),
+                "interrupted_jobs": len(startup_recovery["interrupted_job_ids"]),
+            },
         }
 
     @app.get("/api/admin/api-keys")
@@ -187,6 +198,7 @@ def create_app(
 
     @app.post("/api/jobs", status_code=201)
     def create_job(
+        response: Response,
         source: UploadFile = File(...),
         driving: UploadFile = File(...),
         consent_confirmed: bool = Form(False),
@@ -194,8 +206,15 @@ def create_app(
         authorization_reference: str | None = Form(None),
         authorization_reviewer: str | None = Form(None),
         authorization_status: str = Form(DEFAULT_AUTHORIZATION_STATUS),
+        x_idempotency_key: str | None = Header(default=None, alias="x-idempotency-key"),
         principal: Principal = Depends(require_principal),
     ) -> Dict[str, object]:
+        idempotency_key = _validate_idempotency_key(x_idempotency_key)
+        if idempotency_key is not None:
+            existing_job = store.get_job_by_idempotency_key(principal.owner_id, idempotency_key)
+            if existing_job is not None:
+                response.status_code = 200
+                return _job_payload(existing_job)
         _validate_consent(consent_confirmed)
         authorization_status = _validate_authorization_status(authorization_status)
         authorization_basis = _clean_optional_form_value(authorization_basis)
@@ -220,25 +239,55 @@ def create_app(
         _save_upload(source, source_path, cfg.max_upload_bytes)
         _save_upload(driving, driving_path, cfg.max_upload_bytes)
 
-        job = store.create_job(
-            source_filename=source.filename or source_path.name,
-            driving_filename=driving.filename or driving_path.name,
-            source_path=source_path,
-            driving_path=driving_path,
-            output_dir=output_dir,
-            job_id=job_id,
-            consent_confirmed=consent_confirmed,
-            usage_policy_version=DEFAULT_USAGE_POLICY_VERSION,
-            authorization_basis=authorization_basis,
-            authorization_reference=authorization_reference,
-            authorization_reviewer=authorization_reviewer,
-            authorization_status=authorization_status,
-            owner_id=principal.owner_id,
-            created_by_key_id=principal.key_id,
-        )
+        try:
+            job = store.create_job(
+                source_filename=source.filename or source_path.name,
+                driving_filename=driving.filename or driving_path.name,
+                source_path=source_path,
+                driving_path=driving_path,
+                output_dir=output_dir,
+                job_id=job_id,
+                consent_confirmed=consent_confirmed,
+                usage_policy_version=DEFAULT_USAGE_POLICY_VERSION,
+                authorization_basis=authorization_basis,
+                authorization_reference=authorization_reference,
+                authorization_reviewer=authorization_reviewer,
+                authorization_status=authorization_status,
+                owner_id=principal.owner_id,
+                created_by_key_id=principal.key_id,
+                idempotency_key=idempotency_key,
+            )
+        except sqlite3.IntegrityError:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            if idempotency_key is not None:
+                existing_job = store.get_job_by_idempotency_key(principal.owner_id, idempotency_key)
+                if existing_job is not None:
+                    response.status_code = 200
+                    return _job_payload(existing_job)
+            raise
         if enqueue_jobs:
             queue.put(job.job_id)
         return _job_payload(job)
+
+    @app.post("/api/jobs/{job_id}/retry", status_code=202)
+    def retry_job(job_id: str, principal: Principal = Depends(require_principal)) -> Dict[str, object]:
+        job = _get_visible_job(store, job_id, principal)
+        if job.status != FAILED:
+            raise HTTPException(status_code=409, detail=f"job is {job.status}; only failed jobs can be retried")
+        if job.attempt_count > cfg.max_retries_per_job:
+            raise HTTPException(status_code=409, detail="job retry limit is reached")
+        _validate_capacity(
+            store,
+            max_active_jobs=cfg.max_active_jobs,
+            max_active_jobs_per_owner=cfg.max_active_jobs_per_owner,
+            owner_id=principal.owner_id,
+        )
+        retried_job = store.retry_failed_job(job_id)
+        if retried_job is None:
+            raise HTTPException(status_code=409, detail="job can no longer be retried")
+        if enqueue_jobs:
+            queue.put(retried_job.job_id)
+        return _job_payload(retried_job)
 
     @app.get("/api/jobs")
     def list_jobs(
@@ -379,6 +428,8 @@ def _worker_loop(queue: Queue[str], store: JobStore, runner: InferenceRunner) ->
         job_id = queue.get()
         try:
             runner.run_job(store, job_id)
+        except Exception as exc:
+            store.mark_failed(job_id, f"worker error: {type(exc).__name__}: {exc}"[:4000])
         finally:
             queue.task_done()
 
@@ -460,6 +511,15 @@ def _clean_optional_form_value(value: str | None) -> str | None:
     return cleaned or None
 
 
+def _validate_idempotency_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    key = value.strip()
+    if not key or len(key) > 128:
+        raise HTTPException(status_code=400, detail="x-idempotency-key must be 1 to 128 characters")
+    return key
+
+
 def _required_owner_id(value: object) -> str:
     owner_id = _clean_optional_form_value(value if isinstance(value, str) else None)
     if owner_id is None or len(owner_id) > 120:
@@ -531,6 +591,8 @@ def _job_payload(job: JobRecord) -> Dict[str, object]:
         "authorization_reviewer": job.authorization_reviewer,
         "authorization_status": job.authorization_status,
         "owner_id": job.owner_id,
+        "idempotency_key": job.idempotency_key,
+        "attempt_count": job.attempt_count,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }

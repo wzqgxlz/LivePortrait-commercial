@@ -2,8 +2,10 @@
 
 import json
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from queue import Queue
 
 from fastapi.testclient import TestClient
 
@@ -36,6 +38,7 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert 'id="driving-summary"' in page_response.text
         assert 'id="job-summary"' in page_response.text
         assert 'id="job-summary-content"' in page_response.text
+        assert 'id="retry-job"' in page_response.text
         assert 'id="clear-result"' in page_response.text
         assert 'id="auth-hint"' in page_response.text
         assert 'id="empty-state"' in page_response.text
@@ -76,6 +79,8 @@ def test_frontend_page_and_assets_are_served(tmp_path):
         assert "runCleanup" in script_response.text
         assert "loadAccessProfile" in script_response.text
         assert "sessionStorage" in script_response.text
+        assert "createIdempotencyKey" in script_response.text
+        assert "retryCurrentJob" in script_response.text
         assert "status=" in script_response.text
         assert "authorization_reference=" in script_response.text
         assert "loadAuditExport" in script_response.text
@@ -125,6 +130,128 @@ def test_create_job_saves_uploads_and_returns_pending_status(tmp_path):
         assert status_response.status_code == 200
         assert status_response.json()["source_filename"] == "source.jpg"
         assert status_response.json()["consent_confirmed"] is True
+
+
+def test_create_job_idempotency_key_returns_the_original_job_without_duplication(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(repo_root=tmp_path, data_dir=tmp_path / "api-data"),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+    headers = {"x-idempotency-key": "client-request-001"}
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/jobs",
+            headers=headers,
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        repeated = client.post(
+            "/api/jobs",
+            headers=headers,
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+
+        assert first.status_code == 201
+        assert repeated.status_code == 200
+        assert repeated.json()["job_id"] == first.json()["job_id"]
+        assert repeated.json()["idempotency_key"] == "client-request-001"
+        assert len(client.get("/api/jobs").json()["jobs"]) == 1
+
+
+def test_failed_job_retry_preserves_job_identity_and_enforces_retry_limit(tmp_path):
+    from src.api.app import create_app
+    from src.api.config import ApiConfig
+
+    app = create_app(
+        ApiConfig(
+            repo_root=tmp_path,
+            data_dir=tmp_path / "api-data",
+            max_active_jobs=10,
+            max_active_jobs_per_owner=10,
+            max_retries_per_job=1,
+        ),
+        enqueue_jobs=False,
+        run_startup_checks=False,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            data={"consent_confirmed": "true"},
+            files={
+                "source": ("source.jpg", b"source", "image/jpeg"),
+                "driving": ("driving.jpg", b"driving", "image/jpeg"),
+            },
+        )
+        job_id = created.json()["job_id"]
+        store = app.state.job_store
+        store.mark_running(job_id)
+        store.mark_failed(job_id, "first attempt failed")
+
+        retried = client.post(f"/api/jobs/{job_id}/retry")
+        assert retried.status_code == 202
+        assert retried.json()["job_id"] == job_id
+        assert retried.json()["status"] == "pending"
+        assert retried.json()["attempt_count"] == 1
+
+        store.mark_running(job_id)
+        store.mark_failed(job_id, "second attempt failed")
+        retry_limit = client.post(f"/api/jobs/{job_id}/retry")
+        audit = client.get(f"/api/jobs/{job_id}/audit")
+        assert retry_limit.status_code == 409
+        assert "retry limit" in retry_limit.json()["detail"]
+        assert [event["event_type"] for event in audit.json()["events"]] == [
+            "created",
+            "running",
+            "failed",
+            "retried",
+            "running",
+            "failed",
+        ]
+
+
+def test_worker_exception_marks_the_job_failed_without_stopping_queue_processing(tmp_path):
+    from src.api.app import _worker_loop
+    from src.api.storage import FAILED, JobStore
+
+    class ExplodingRunner:
+        def run_job(self, store, job_id):
+            raise RuntimeError("runner exploded")
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    source_path = tmp_path / "source.jpg"
+    driving_path = tmp_path / "driving.jpg"
+    source_path.write_bytes(b"source")
+    driving_path.write_bytes(b"driving")
+    job = store.create_job(
+        source_filename=source_path.name,
+        driving_filename=driving_path.name,
+        source_path=source_path,
+        driving_path=driving_path,
+        output_dir=tmp_path / "outputs",
+        consent_confirmed=True,
+    )
+    queue: Queue[str] = Queue()
+    worker = threading.Thread(target=_worker_loop, args=(queue, store, ExplodingRunner()), daemon=True)
+    worker.start()
+    queue.put(job.job_id)
+    queue.join()
+
+    failed_job = store.get_job(job.job_id)
+    assert failed_job.status == FAILED
+    assert "runner exploded" in failed_job.error_message
 
 
 def test_create_job_records_authorization_metadata_in_payload_audit_and_export(tmp_path):

@@ -43,6 +43,8 @@ class JobRecord:
     authorization_status: str
     owner_id: Optional[str]
     created_by_key_id: Optional[str]
+    idempotency_key: Optional[str]
+    attempt_count: int
     created_at: str
     updated_at: str
 
@@ -90,6 +92,7 @@ class JobStore:
         authorization_status: str = DEFAULT_AUTHORIZATION_STATUS,
         owner_id: str | None = None,
         created_by_key_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> JobRecord:
         now = _now()
         job_id = job_id or uuid.uuid4().hex
@@ -104,9 +107,9 @@ class JobStore:
                     source_sha256, driving_sha256, output_sha256, consent_confirmed,
                     usage_policy_version, authorization_basis, authorization_reference,
                     authorization_reviewer, authorization_status, owner_id,
-                    created_by_key_id, created_at, updated_at
+                    created_by_key_id, idempotency_key, attempt_count, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -129,6 +132,8 @@ class JobStore:
                     authorization_status,
                     owner_id,
                     created_by_key_id,
+                    idempotency_key,
+                    0,
                     now,
                     now,
                 ),
@@ -150,6 +155,7 @@ class JobStore:
                     "authorization_status": authorization_status,
                     "owner_id": owner_id,
                     "created_by_key_id": created_by_key_id,
+                    "idempotency_key": idempotency_key,
                 },
                 now,
             )
@@ -158,6 +164,14 @@ class JobStore:
     def get_job(self, job_id: str) -> Optional[JobRecord]:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        return _row_to_job(row) if row else None
+
+    def get_job_by_idempotency_key(self, owner_id: str, idempotency_key: str) -> Optional[JobRecord]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM jobs WHERE owner_id = ? AND idempotency_key = ?",
+                (owner_id, idempotency_key),
+            ).fetchone()
         return _row_to_job(row) if row else None
 
     def list_jobs(self) -> list[JobRecord]:
@@ -299,7 +313,16 @@ class JobStore:
             conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
 
     def mark_running(self, job_id: str) -> None:
-        self._update(job_id, "running", status=RUNNING, error_message=None)
+        job = self.get_job(job_id)
+        if job is None or job.status != PENDING:
+            return
+        self._update(
+            job_id,
+            "running",
+            status=RUNNING,
+            error_message=None,
+            attempt_count=job.attempt_count + 1,
+        )
 
     def mark_succeeded(self, job_id: str, result_path: Path) -> None:
         output_sha256 = sha256_file(result_path)
@@ -314,6 +337,50 @@ class JobStore:
 
     def mark_failed(self, job_id: str, error_message: str) -> None:
         self._update(job_id, "failed", status=FAILED, error_message=error_message)
+
+    def retry_failed_job(self, job_id: str) -> Optional[JobRecord]:
+        job = self.get_job(job_id)
+        if job is None or job.status != FAILED:
+            return None
+        self._update(
+            job_id,
+            "retried",
+            status=PENDING,
+            error_message=None,
+            result_path=None,
+            output_sha256=None,
+        )
+        return self.get_job(job_id)
+
+    def recover_incomplete_jobs(self) -> dict[str, list[str]]:
+        pending_jobs = self.list_jobs_with_status(PENDING)
+        running_jobs = self.list_jobs_with_status(RUNNING)
+        for job in running_jobs:
+            self._update(
+                job.job_id,
+                "interrupted",
+                status=FAILED,
+                error_message="service restarted before task completion; retry the job to run it again",
+            )
+        for job in pending_jobs:
+            self._update(
+                job.job_id,
+                "requeued_after_restart",
+                status=PENDING,
+                error_message=None,
+            )
+        return {
+            "requeued_job_ids": [job.job_id for job in pending_jobs],
+            "interrupted_job_ids": [job.job_id for job in running_jobs],
+        }
+
+    def list_jobs_with_status(self, status: str) -> list[JobRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE status = ? ORDER BY created_at ASC",
+                (status,),
+            ).fetchall()
+        return [_row_to_job(row) for row in rows]
 
     def list_audit_events(self, job_id: str) -> list[AuditEvent]:
         with self._connect() as conn:
@@ -357,6 +424,8 @@ class JobStore:
                     authorization_status TEXT NOT NULL DEFAULT 'self_confirmed',
                     owner_id TEXT,
                     created_by_key_id TEXT,
+                    idempotency_key TEXT,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -388,7 +457,16 @@ class JobStore:
             )
             _ensure_column(conn, "jobs", "owner_id", "TEXT")
             _ensure_column(conn, "jobs", "created_by_key_id", "TEXT")
+            _ensure_column(conn, "jobs", "idempotency_key", "TEXT")
+            _ensure_column(conn, "jobs", "attempt_count", "INTEGER NOT NULL DEFAULT 0")
             conn.execute("CREATE INDEX IF NOT EXISTS jobs_owner_id_idx ON jobs(owner_id)")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS jobs_owner_idempotency_key_idx
+                ON jobs(owner_id, idempotency_key)
+                WHERE idempotency_key IS NOT NULL
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS api_keys (
@@ -458,6 +536,8 @@ def _row_to_job(row: sqlite3.Row) -> JobRecord:
         authorization_status=row["authorization_status"],
         owner_id=row["owner_id"],
         created_by_key_id=row["created_by_key_id"],
+        idempotency_key=row["idempotency_key"],
+        attempt_count=row["attempt_count"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

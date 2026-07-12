@@ -39,6 +39,8 @@ def test_job_store_migrates_existing_database_with_consent_columns(tmp_path):
     assert "authorization_reference" in columns
     assert "authorization_reviewer" in columns
     assert "authorization_status" in columns
+    assert "idempotency_key" in columns
+    assert "attempt_count" in columns
 
 
 def test_job_store_records_audit_events_and_output_hash(tmp_path):
@@ -198,3 +200,53 @@ def test_job_store_filters_recent_jobs_by_authorization_metadata(tmp_path):
 
     assert [job.job_id for job in by_reference] == list(reversed(matching_ids))
     assert [job.authorization_status for job in by_reference_and_status] == ["approved"]
+
+
+def test_job_store_recovers_pending_jobs_and_marks_interrupted_jobs_failed(tmp_path):
+    from src.api.storage import FAILED, PENDING, JobStore
+
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    pending_source = tmp_path / "pending-source.jpg"
+    pending_driving = tmp_path / "pending-driving.jpg"
+    running_source = tmp_path / "running-source.jpg"
+    running_driving = tmp_path / "running-driving.jpg"
+    for path in (pending_source, pending_driving, running_source, running_driving):
+        path.write_bytes(path.name.encode("utf-8"))
+
+    pending_job = store.create_job(
+        source_filename=pending_source.name,
+        driving_filename=pending_driving.name,
+        source_path=pending_source,
+        driving_path=pending_driving,
+        output_dir=tmp_path / "pending-output",
+        consent_confirmed=True,
+    )
+    running_job = store.create_job(
+        source_filename=running_source.name,
+        driving_filename=running_driving.name,
+        source_path=running_source,
+        driving_path=running_driving,
+        output_dir=tmp_path / "running-output",
+        consent_confirmed=True,
+    )
+    store.mark_running(running_job.job_id)
+
+    recovery = store.recover_incomplete_jobs()
+
+    assert recovery == {
+        "requeued_job_ids": [pending_job.job_id],
+        "interrupted_job_ids": [running_job.job_id],
+    }
+    assert store.get_job(pending_job.job_id).status == PENDING
+    interrupted = store.get_job(running_job.job_id)
+    assert interrupted.status == FAILED
+    assert "service restarted" in interrupted.error_message
+    assert [event.event_type for event in store.list_audit_events(pending_job.job_id)] == [
+        "created",
+        "requeued_after_restart",
+    ]
+    assert [event.event_type for event in store.list_audit_events(running_job.job_id)] == [
+        "created",
+        "running",
+        "interrupted",
+    ]

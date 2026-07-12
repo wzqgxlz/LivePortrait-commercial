@@ -29,6 +29,7 @@ $env:LIVEPORTRAIT_API_KEY = "replace-with-a-long-random-secret"
 $env:LIVEPORTRAIT_API_MAX_UPLOAD_BYTES = "209715200"
 $env:LIVEPORTRAIT_API_MAX_ACTIVE_JOBS = "20"
 $env:LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER = "3"
+$env:LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB = "2"
 ```
 
 Set `LIVEPORTRAIT_API_FORCE_CPU=1` only for local smoke tests without an NVIDIA
@@ -45,12 +46,15 @@ managed Key exists, every protected endpoint requires a valid `x-api-key`.
 number of `pending` plus `running` jobs. The default is 20; when the queue is
 full, `POST /api/jobs` returns `429`. `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER`
 defaults to three and limits active jobs for each personal Key owner.
+`LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB` defaults to two retries after a job's
+initial execution attempt.
 
 ## Authentication
 
 Protected endpoints:
 
 - `POST /api/jobs`
+- `POST /api/jobs/{job_id}/retry`
 - `GET /api/jobs`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/result`
@@ -165,6 +169,16 @@ Response:
 }
 ```
 
+To make a client retry safe after a network timeout, send an
+`x-idempotency-key` header with a unique value for that logical submission. A
+repeat request from the same owner returns the original job with HTTP `200`
+instead of creating a second job. Do not reuse an idempotency Key for a new
+generation.
+
+```http
+x-idempotency-key: client-request-001
+```
+
 ### Get Job
 
 ```http
@@ -177,6 +191,18 @@ Status values:
 - `running`
 - `succeeded`
 - `failed`
+
+### Retry Failed Job
+
+```http
+POST /api/jobs/{job_id}/retry
+```
+
+Only the job owner or an administrator can retry a `failed` job. The retry keeps
+the same job ID, uploaded files, authorization metadata, and audit history. It
+returns `202` with status `pending`. A retry is rejected when the global or
+per-owner active-job limit is full, or after
+`LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB` retries have been used.
 
 ### List Recent Jobs
 
@@ -222,7 +248,8 @@ GET /api/jobs/{job_id}/audit
 ```
 
 Returns the job timeline used for support and traceability. Events currently
-include `created`, `running`, `succeeded`, and `failed`. The `created` event
+include `created`, `running`, `succeeded`, `failed`, `retried`, `interrupted`,
+and `requeued_after_restart`. The `created` event
 records input hashes, authorization metadata, and the authorization policy
 version. Terminal events record the output hash or failure message.
 

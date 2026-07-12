@@ -83,6 +83,7 @@ Pass/Fail Criteria:
 - [ ] `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` is set.
 - [ ] `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` is set.
 - [ ] `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER` is set.
+- [ ] `LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB` is set.
 - [ ] `LIVEPORTRAIT_API_KEY` is retained as the bootstrap administrator Key and
   is not distributed to end users.
 - [ ] Selected deployment mode is recorded as `systemd` or `docker-compose`.
@@ -227,6 +228,7 @@ Fill this table for each deployment acceptance run.
 | Max upload bytes | |
 | Max active jobs | |
 | Max active jobs per owner | |
+| Max retries per job | |
 | systemd unit status or Docker image ID | |
 | Service/container log excerpt saved | |
 | Deployment check result | |

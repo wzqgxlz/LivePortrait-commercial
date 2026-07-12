@@ -9,6 +9,7 @@
   const details = document.getElementById("details");
   const jobSummary = document.getElementById("job-summary");
   const jobSummaryContent = document.getElementById("job-summary-content");
+  const retryJobButton = document.getElementById("retry-job");
   const clearResultButton = document.getElementById("clear-result");
   const completionPanel = document.getElementById("completion-panel");
   const completionTitle = document.getElementById("completion-title");
@@ -58,6 +59,8 @@
   let currentAuditUrl = null;
   let currentAuthorizationExportUrl = null;
   let maxUploadBytes = null;
+  let currentJobId = null;
+  let pendingSubmissionKey = null;
 
   apiKeyInput.value = sessionStorage.getItem("liveportrait_api_key") || "";
   updateAuthHint();
@@ -74,10 +77,12 @@
   loadAccessProfile();
   form.addEventListener("submit", createJob);
   sourceInput.addEventListener("change", () => {
+    pendingSubmissionKey = null;
     renderFileSummary(sourceInput, sourceSummary);
     clearFormErrors();
   });
   drivingInput.addEventListener("change", () => {
+    pendingSubmissionKey = null;
     renderFileSummary(drivingInput, drivingSummary);
     clearFormErrors();
   });
@@ -91,6 +96,7 @@
   cleanupDeleteButton.addEventListener("click", () => runCleanup(false));
   refreshCleanupRunsButton.addEventListener("click", loadCleanupRuns);
   clearResultButton.addEventListener("click", clearCurrentJob);
+  retryJobButton.addEventListener("click", retryCurrentJob);
 
   async function createJob(event) {
     event.preventDefault();
@@ -108,17 +114,22 @@
     try {
       submitButton.disabled = true;
       setStatus("Uploading");
+      pendingSubmissionKey = pendingSubmissionKey || createIdempotencyKey();
       const body = new FormData(form);
       body.delete("api-key");
       const response = await fetch("/api/jobs", {
         method: "POST",
-        headers: authHeaders(),
+        headers: {
+          ...authHeaders(),
+          "x-idempotency-key": pendingSubmissionKey,
+        },
         body,
       });
       const payload = await readJson(response);
       if (!response.ok) {
         throw new Error(friendlyError(response.status, payload.detail || "Upload failed"));
       }
+      pendingSubmissionKey = null;
       renderJobSummary(payload);
       details.textContent = "Job " + payload.job_id;
       await loadJobs();
@@ -394,6 +405,33 @@
     }
   }
 
+  async function retryCurrentJob() {
+    if (!currentJobId) {
+      return;
+    }
+    try {
+      retryJobButton.disabled = true;
+      const response = await fetch("/api/jobs/" + encodeURIComponent(currentJobId) + "/retry", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || "Retry request failed");
+      }
+      completionPanel.hidden = true;
+      setStatus(payload.status);
+      renderJobSummary(payload);
+      details.textContent = "Job " + payload.job_id + " queued for retry.";
+      await loadJobs();
+      await pollJob(payload.job_id);
+    } catch (error) {
+      details.textContent = error.message;
+    } finally {
+      retryJobButton.disabled = false;
+    }
+  }
+
   async function exportAuthorizationRecord() {
     const authorizationReference = authorizationReferenceFilter.value.trim();
     if (!authorizationReference) {
@@ -440,10 +478,13 @@
   }
 
   function renderJobSummary(job) {
+    currentJobId = job.job_id || null;
+    retryJobButton.hidden = job.status !== "failed";
     jobSummary.hidden = false;
     jobSummaryContent.replaceChildren(
       summaryRow("Status", job.status || "unknown"),
       summaryRow("Job ID", job.job_id || "unknown"),
+      summaryRow("Attempts", String(job.attempt_count || 0)),
       summaryRow("Files", (job.source_filename || "source") + " -> " + (job.driving_filename || "driving")),
       summaryRow("Created", formatTime(job.created_at)),
       summaryRow("Updated", formatTime(job.updated_at)),
@@ -477,6 +518,8 @@
     resetResult();
     jobSummary.hidden = true;
     jobSummaryContent.replaceChildren();
+    currentJobId = null;
+    retryJobButton.hidden = true;
     completionPanel.hidden = true;
     setStatus("Ready");
     details.textContent = "No job selected.";
@@ -611,6 +654,13 @@
 
   function safeDownloadName(value) {
     return String(value || "record").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "record";
+  }
+
+  function createIdempotencyKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "web-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
   }
 
   async function readJson(response) {
