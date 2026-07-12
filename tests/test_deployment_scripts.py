@@ -131,6 +131,13 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "scripts/smoke_api_job.py" in doc
     assert "output_sha256" in doc
     assert "Rollback" in doc
+    assert "Choose One Deployment Mode" in doc
+    assert "docker-compose" in doc
+    assert "systemd" in doc
+    assert "deploy/docker-compose.gpu.yml" in doc
+    assert "deploy/Dockerfile.api" in doc
+    assert "docker compose -f deploy/docker-compose.gpu.yml ps" in doc
+    assert "sudo systemctl stop liveportrait-api" in doc
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():

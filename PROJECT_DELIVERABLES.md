@@ -126,7 +126,7 @@ wrapper:
 | Deliverables index | `PROJECT_DELIVERABLES.md` | This running inventory of project outputs. |
 | API service guide | `docs/mvp-api-service.md` | Main operator/developer reference for the MVP API and frontend. |
 | GPU deployment guide | `docs/gpu-api-deployment.md` | GPU machine setup and deployment reference. |
-| Deployment acceptance checklist | `docs/deployment-acceptance-checklist.md` | Acceptance stages, evidence table, pass/fail criteria, smoke-job validation, cleanup evidence, and rollback steps. |
+| Deployment acceptance checklist | `docs/deployment-acceptance-checklist.md` | Unified systemd/Docker Compose acceptance stages, runtime evidence table, pass/fail criteria, smoke-job validation, cleanup evidence, and rollback steps. |
 | Production operations guide | `docs/production-operations.md` | Launch checklist, daily operations, support export, cleanup evidence, incident response, and MVP limitations. |
 | Content safety and authorization workflow | `docs/content-safety-authorization-workflow.md` | MVP workflow for authorization records, content review, prohibited uses, manual review, support export, and retention. |
 | Humans regression record | `docs/humans-mediapipe-regression-2026-07-08.md` | Recorded Humans mode MediaPipe regression notes. |
@@ -166,6 +166,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `0c492d4` | `chore: add docker api deployment` |
 | `3e4b3f4` | `feat: add confirmed cleanup action` |
 | `52c353b` | `feat: add authorization record operations` |
 | `23728f2` | `feat: add lightweight authorization metadata` |

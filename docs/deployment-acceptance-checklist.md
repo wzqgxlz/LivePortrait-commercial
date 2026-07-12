@@ -6,6 +6,19 @@ clear acceptance evidence before a tester or customer uses the service.
 
 Animals mode is out of scope for this checklist.
 
+## Choose One Deployment Mode
+
+Choose exactly one service mode for an acceptance run. Do not run both modes on
+port `8000` at the same time.
+
+| Mode | Use when | Start command | Primary runtime evidence |
+| --- | --- | --- | --- |
+| `systemd` | The repository and Python environment live directly on the GPU machine. | `sudo systemctl start liveportrait-api` | `systemctl status liveportrait-api` and `journalctl -u liveportrait-api` |
+| `docker-compose` | You want a repeatable GPU image with host-mounted models and API data. | `docker compose -f deploy/docker-compose.gpu.yml up -d --build` | `docker compose -f deploy/docker-compose.gpu.yml ps` and `docker compose -f deploy/docker-compose.gpu.yml logs api` |
+
+Both modes use the same API, API Key, persistent data directory, commercial
+safety scan, deployment check, smoke job, audit export, and cleanup evidence.
+
 ## Acceptance Stages
 
 ### 1. Repository And Branch
@@ -63,13 +76,38 @@ Pass/Fail Criteria:
 - Fail: CUDA is unavailable, the GPU is missing, or the service is still forced
   into CPU mode.
 
-### 4. API Configuration
+### 4. API Configuration And Service Start
 
 - [ ] `LIVEPORTRAIT_API_KEY` is non-empty and not the template value.
 - [ ] `LIVEPORTRAIT_API_DATA_DIR` points to persistent storage.
 - [ ] `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` is set.
 - [ ] `LIVEPORTRAIT_API_MAX_ACTIVE_JOBS` is set.
-- [ ] Service starts with `scripts/start_gpu_api_server.sh` or systemd.
+- [ ] Selected deployment mode is recorded as `systemd` or `docker-compose`.
+- [ ] Only the selected deployment mode is using port `8000`.
+
+For `systemd`:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable liveportrait-api
+sudo systemctl start liveportrait-api
+sudo systemctl status liveportrait-api --no-pager
+```
+
+Confirm that `/etc/liveportrait/liveportrait-api.env` contains the deployment
+settings and that the unit uses `scripts/start_gpu_api_server.sh`.
+
+For `docker-compose`:
+
+```bash
+export LIVEPORTRAIT_API_KEY="replace-with-a-long-random-secret"
+docker compose -f deploy/docker-compose.gpu.yml up -d --build
+docker compose -f deploy/docker-compose.gpu.yml ps
+docker compose -f deploy/docker-compose.gpu.yml logs --tail=100 api
+```
+
+Confirm `deploy/Dockerfile.api` built successfully, the API container is
+running, and the host mounts `pretrained_weights` and `tmp/api` are writable.
 
 Evidence to record:
 
@@ -78,6 +116,20 @@ env | grep LIVEPORTRAIT_API
 ```
 
 Do not paste the raw API Key into shared acceptance notes.
+
+For Docker Compose, also record:
+
+```bash
+docker compose -f deploy/docker-compose.gpu.yml images
+docker compose -f deploy/docker-compose.gpu.yml ps
+```
+
+Pass/Fail Criteria:
+
+- Pass: the selected mode is running, owns port `8000`, and has persistent
+  model/API-data storage.
+- Fail: both modes are running, the container/service is restarting, mounted
+  storage is unavailable, or the API Key is missing.
 
 ### 5. Lightweight Deployment Check
 
@@ -161,6 +213,7 @@ Fill this table for each deployment acceptance run.
 | Operator | |
 | Machine/provider | |
 | GPU model | |
+| Deployment mode | systemd / docker-compose |
 | Branch | |
 | Commit | |
 | Python version | |
@@ -170,6 +223,8 @@ Fill this table for each deployment acceptance run.
 | Data directory | |
 | Max upload bytes | |
 | Max active jobs | |
+| systemd unit status or Docker image ID | |
+| Service/container log excerpt saved | |
 | Deployment check result | |
 | Smoke job ID | |
 | Smoke job status | |
@@ -184,12 +239,25 @@ Fill this table for each deployment acceptance run.
 Use rollback when any acceptance stage fails after the service has already been
 shared.
 
-1. Stop the service or remove public access.
+1. Stop the selected service mode or remove public access.
+
+   ```bash
+   # systemd
+   sudo systemctl stop liveportrait-api
+
+   # docker-compose
+   docker compose -f deploy/docker-compose.gpu.yml down
+   ```
+
 2. Rotate `LIVEPORTRAIT_API_KEY` if it was exposed.
 3. Preserve service logs, job exports, and `cleanup-runs.jsonl`.
-4. Record the failing stage and exact command output.
-5. Return to the previous accepted commit or keep the service offline until the
-   failure is fixed and this checklist passes again.
+4. For `docker-compose`, also preserve the image ID and the host-mounted
+   `pretrained_weights` and `tmp/api` directories; do not delete them during
+   rollback.
+5. Record the failing stage and exact command output.
+6. Return to the previous accepted commit or image, then repeat this checklist
+   from the commercial-safety scan onward. Keep the service offline until the
+   checklist passes again.
 
 ## Acceptance Decision
 

@@ -163,8 +163,10 @@ Successful jobs record `output_sha256` and audit events for later traceability.
 Use `GET /api/jobs/{job_id}/export` or the frontend `Download audit JSON`
 action to download the complete traceability package.
 
-For a formal handoff, complete `docs/deployment-acceptance-checklist.md` and
-record the smoke job ID, result path, and `output_sha256`.
+For a formal handoff, complete `docs/deployment-acceptance-checklist.md`. Pick
+either the systemd or Docker Compose path first, then record the deployment
+mode, smoke job ID, result path, `output_sha256`, and the selected runtime's
+status/log evidence. Do not run both service modes on port `8000`.
 
 ## 7. Run With systemd
 
