@@ -12,8 +12,10 @@ def test_download_humans_assets_uses_allowlist_and_blocks_legacy_detector(tmp_pa
 
     def fake_snapshot_download(**kwargs):
         calls.append(kwargs)
-        liveportrait_dir = tmp_path / "pretrained_weights" / "liveportrait"
-        liveportrait_dir.mkdir(parents=True)
+        for relative_path in module.REQUIRED_HUMANS_FILES:
+            path = tmp_path / relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"model")
         return str(tmp_path / "pretrained_weights")
 
     def fake_download_file(url, destination, force=False):

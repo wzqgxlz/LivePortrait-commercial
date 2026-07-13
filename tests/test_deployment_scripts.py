@@ -49,7 +49,9 @@ def test_gpu_machine_quickstart_covers_clone_to_browser_validation():
     assert "python3 -m venv .venv" in doc
     assert "pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128" in doc
     assert "torch.cuda.is_available()" in doc
+    assert "apt install -y ffmpeg libgles2 libegl1 libgl1 libglib2.0-0" in doc
     assert "python scripts/download_humans_assets.py" in doc
+    assert "HF_ENDPOINT=https://hf-mirror.com" in doc
     assert "LIVEPORTRAIT_API_KEY" in doc
     assert "LIVEPORTRAIT_API_FORCE_CPU=0" in doc
     assert "python scripts/check_deployment_preflight.py" in doc
@@ -63,6 +65,8 @@ def test_gpu_machine_quickstart_covers_clone_to_browser_validation():
     assert "deploy/nginx-liveportrait-api.conf" in doc
     assert "deploy/Caddyfile.example" in doc
     assert "CUDA out-of-memory" in doc
+    assert "libGLESv2.so.2" in doc
+    assert "ffprobe" in doc
     assert "docs/gpu-machine-quickstart.md" in acceptance
     assert "docs/gpu-machine-quickstart.md" in deliverables
 
@@ -97,6 +101,11 @@ def test_docker_deployment_files_use_gpu_api_defaults_and_exclude_local_artifact
     assert "nvidia/cuda" in dockerfile
     assert "pip install torch torchvision torchaudio" in dockerfile
     assert "pip install -r requirements.txt" in dockerfile
+    assert "ffmpeg" in dockerfile
+    assert "libgles2" in dockerfile
+    assert "libegl1" in dockerfile
+    assert "libgl1" in dockerfile
+    assert "libglib2.0-0" in dockerfile
     assert "LIVEPORTRAIT_API_FORCE_CPU=0" in dockerfile
     assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER=3" in dockerfile
     assert "LIVEPORTRAIT_API_MAX_RETRIES_PER_JOB=2" in dockerfile
@@ -192,11 +201,34 @@ def test_deployment_preflight_script_checks_environment_assets_and_safety():
     assert "commercial.blocked_paths" in script
     assert "LIVEPORTRAIT_API_KEY" in script
     assert "LIVEPORTRAIT_API_MAX_ACTIVE_JOBS_PER_OWNER" in script
+    assert "REQUIRED_SYSTEM_COMMANDS" in script
+    assert "ffmpeg" in script
+    assert "ffprobe" in script
+    assert "REQUIRED_SHARED_LIBRARIES" in script
+    assert "libGLESv2.so.2" in script
+    assert "libEGL.so.1" in script
+    assert "libGL.so.1" in script
+    assert "libglib-2.0.so.0" in script
+    assert "system.commands" in script
+    assert "system.shared_libraries" in script
     assert "REQUIRED_IMPORTS" in script
     assert "torch.cuda.is_available" in script
     assert "--skip-gpu" in script
     assert "--skip-imports" in script
+    assert "--skip-system-deps" in script
     assert "--allow-missing-api-key" in script
+
+
+def test_humans_asset_downloader_validates_files_and_mentions_hf_mirror():
+    script = Path("scripts/download_humans_assets.py").read_text(encoding="utf-8")
+
+    assert "REQUIRED_HUMANS_FILES" in script
+    assert "landmark.onnx" in script
+    assert "appearance_feature_extractor.pth" in script
+    assert "stitching_retargeting_module.pth" in script
+    assert "_assert_required_assets(repo_root)" in script
+    assert "Required Humans mode assets are still missing after download" in script
+    assert "HF_ENDPOINT=https://hf-mirror.com" in script
 
 
 def test_local_product_workflow_acceptance_record_documents_result():
@@ -283,6 +315,26 @@ def test_deployment_acceptance_checklist_covers_evidence_and_failures():
     assert "job.retried" in doc
     assert "operational_audit_matched_events" in doc
     assert "Deployment preflight passes" in doc
+    assert "ffmpeg -version" in doc
+    assert "ffprobe -version" in doc
+    assert "libGLESv2.so.2" in doc
+    assert "libEGL.so.1" in doc
+    assert "libGL.so.1" in doc
+    assert "libglib-2.0.so.0" in doc
+
+
+def test_gpu_validation_record_documents_real_gpu_smoke_issues():
+    doc = Path("docs/gpu-validation-record-2026-07-13.md").read_text(encoding="utf-8")
+    deliverables = Path("PROJECT_DELIVERABLES.md").read_text(encoding="utf-8")
+
+    assert "20c938b docs: add gpu machine quickstart" in doc
+    assert "2.11.0+cu128 True" in doc
+    assert "FFmpeg is not installed" in doc
+    assert "libGLESv2.so.2" in doc
+    assert "HF_ENDPOINT=https://hf-mirror.com" in doc
+    assert "Status: succeeded" in doc
+    assert "tmp/api-smoke-result.jpg" in doc
+    assert "docs/gpu-validation-record-2026-07-13.md" in deliverables
 
 
 def test_content_safety_authorization_workflow_covers_mvp_controls():

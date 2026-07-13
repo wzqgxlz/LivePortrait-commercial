@@ -66,6 +66,9 @@ Pass/Fail Criteria:
 ### 3. GPU Runtime
 
 - [ ] `nvidia-smi` shows the expected GPU.
+- [ ] `ffmpeg` and `ffprobe` are installed.
+- [ ] MediaPipe/OpenCV shared libraries are installed:
+  `libGLESv2.so.2`, `libEGL.so.1`, `libGL.so.1`, and `libglib-2.0.so.0`.
 - [ ] PyTorch imports successfully.
 - [ ] `torch.cuda.is_available()` is `True`.
 - [ ] `LIVEPORTRAIT_API_FORCE_CPU=0`.
@@ -75,14 +78,19 @@ Commands:
 
 ```bash
 nvidia-smi
+ffmpeg -version
+ffprobe -version
+ldconfig -p | grep -E 'libGLESv2|libEGL|libGL|libglib-2.0'
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
 Pass/Fail Criteria:
 
-- Pass: GPU is visible and CUDA is available to PyTorch.
+- Pass: GPU is visible, FFmpeg/FFprobe are available, required MediaPipe/OpenCV
+  shared libraries are installed, and CUDA is available to PyTorch.
 - Fail: CUDA is unavailable, the GPU is missing, or the service is still forced
-  into CPU mode.
+  into CPU mode, or the required video/shared-library runtime packages are
+  missing.
 
 ### 4. API Configuration And Service Start
 

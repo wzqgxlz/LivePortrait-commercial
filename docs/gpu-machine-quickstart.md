@@ -28,6 +28,14 @@ Record the commit hash shown by `git log -1 --oneline`.
 
 ## 3. Create Python Environment
 
+Install the system packages required by inference, video processing, OpenCV, and
+MediaPipe:
+
+```bash
+apt update
+apt install -y ffmpeg libgles2 libegl1 libgl1 libglib2.0-0
+```
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -66,6 +74,14 @@ python scripts/download_humans_assets.py
 This downloads the Humans mode weights and MediaPipe detector asset required by
 the commercial-safe detection path.
 
+If Hugging Face access is slow or unstable on the rented machine, set a mirror
+and retry:
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+python scripts/download_humans_assets.py
+```
+
 ## 5. Set API Environment
 
 ```bash
@@ -92,7 +108,8 @@ python scripts/check_deployment_preflight.py
 
 The strict preflight must pass on the GPU machine. It checks repository files,
 commercial-safety guardrails, Humans mode assets, MediaPipe assets, required
-Python imports, API environment, and CUDA availability.
+system commands, shared libraries, Python imports, API environment, and CUDA
+availability.
 
 ## 7. Start The API
 
@@ -158,7 +175,9 @@ deploy/Caddyfile.example
 | --- | --- | --- |
 | `nvidia-smi` fails | GPU driver or cloud image is not ready. | Rebuild the GPU instance or choose a GPU image with NVIDIA driver support. |
 | `torch.cuda.is_available()` is `False` | PyTorch wheel does not match the machine CUDA/driver setup. | Install a compatible PyTorch CUDA wheel, then rerun preflight. |
-| Humans assets are missing | Model files were not downloaded. | Run `python scripts/download_humans_assets.py` again. |
+| Humans assets are missing | Model files were not downloaded. | Run `python scripts/download_humans_assets.py` again; if Hugging Face is slow, set `HF_ENDPOINT=https://hf-mirror.com` and retry. |
+| Preflight reports missing `ffmpeg` or `ffprobe` | Video runtime tools are not installed. | Run `apt install -y ffmpeg`. |
+| Preflight reports missing `libGLESv2.so.2`, `libEGL.so.1`, `libGL.so.1`, or `libglib-2.0.so.0` | MediaPipe/OpenCV Linux shared libraries are not installed. | Run `apt install -y libgles2 libegl1 libgl1 libglib2.0-0`. |
 | Preflight blocks InsightFace paths | Unsafe old assets or vendored code are present. | Remove blocked InsightFace directories before deployment. |
 | API returns `401` | API Key is missing or incorrect. | Send the correct `x-api-key` header or paste the correct Key in the browser. |
 | Upload returns `413` | Upload exceeds API or reverse proxy limit. | Check `LIVEPORTRAIT_API_MAX_UPLOAD_BYTES` and proxy upload limits. |

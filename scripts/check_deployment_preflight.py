@@ -1,10 +1,12 @@
 # coding: utf-8
 
 import argparse
+import ctypes.util
 import importlib
 import json
 import os
 import platform
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +30,13 @@ REQUIRED_MODEL_FILES = (
     Path("pretrained_weights") / "mediapipe" / "blaze_face_short_range.tflite",
 )
 REQUIRED_IMPORTS = ("fastapi", "uvicorn", "numpy", "torch", "cv2", "onnxruntime", "mediapipe")
+REQUIRED_SYSTEM_COMMANDS = ("ffmpeg", "ffprobe")
+REQUIRED_SHARED_LIBRARIES = {
+    "libGLESv2.so.2": "GLESv2",
+    "libEGL.so.1": "EGL",
+    "libGL.so.1": "GL",
+    "libglib-2.0.so.0": "glib-2.0",
+}
 TEMPLATE_API_KEY = "replace-with-a-long-random-secret"
 
 
@@ -51,6 +60,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--skip-gpu", action="store_true", help="Skip CUDA/GPU availability checks.")
     parser.add_argument("--skip-imports", action="store_true", help="Skip Python package import checks.")
     parser.add_argument(
+        "--skip-system-deps",
+        action="store_true",
+        help="Skip OS command and shared-library checks. Use only on non-deployment machines.",
+    )
+    parser.add_argument(
         "--allow-missing-api-key",
         action="store_true",
         help="Warn instead of failing when LIVEPORTRAIT_API_KEY is missing or still set to the template value.",
@@ -61,6 +75,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         repo_root=args.repo_root,
         skip_gpu=args.skip_gpu,
         skip_imports=args.skip_imports,
+        skip_system_deps=args.skip_system_deps,
         allow_missing_api_key=args.allow_missing_api_key,
     )
     payload = {
@@ -79,6 +94,7 @@ def run_preflight(
     repo_root: Path,
     skip_gpu: bool = False,
     skip_imports: bool = False,
+    skip_system_deps: bool = False,
     allow_missing_api_key: bool = False,
 ) -> list[CheckResult]:
     repo_root = repo_root.resolve()
@@ -90,6 +106,7 @@ def run_preflight(
         _check_commercial_safety(repo_root),
         _check_api_environment(allow_missing_api_key=allow_missing_api_key),
     ]
+    results.extend(_check_system_dependencies(skip=skip_system_deps))
     results.extend(_check_imports(skip=skip_imports))
     results.append(_check_gpu(skip=skip_gpu))
     return results
@@ -201,6 +218,59 @@ def _check_api_environment(allow_missing_api_key: bool) -> CheckResult:
             "numeric_vars": numeric_vars,
         },
     )
+
+
+def _check_system_dependencies(skip: bool) -> list[CheckResult]:
+    if skip:
+        return [
+            CheckResult(
+                name="system.commands",
+                status="skip",
+                required=True,
+                message="System command checks skipped.",
+                details={"commands": list(REQUIRED_SYSTEM_COMMANDS)},
+            ),
+            CheckResult(
+                name="system.shared_libraries",
+                status="skip",
+                required=True,
+                message="Shared-library checks skipped.",
+                details={"libraries": list(REQUIRED_SHARED_LIBRARIES)},
+            ),
+        ]
+
+    command_paths = {command: shutil.which(command) for command in REQUIRED_SYSTEM_COMMANDS}
+    missing_commands = [command for command, path in command_paths.items() if not path]
+    library_paths = {
+        library: ctypes.util.find_library(lookup_name)
+        for library, lookup_name in REQUIRED_SHARED_LIBRARIES.items()
+    }
+    missing_libraries = [library for library, path in library_paths.items() if not path]
+
+    return [
+        CheckResult(
+            name="system.commands",
+            status="pass" if not missing_commands else "fail",
+            required=True,
+            message=(
+                "Required system commands are available."
+                if not missing_commands
+                else "Required system commands are missing."
+            ),
+            details={"paths": command_paths, "missing": missing_commands},
+        ),
+        CheckResult(
+            name="system.shared_libraries",
+            status="pass" if not missing_libraries else "fail",
+            required=True,
+            message=(
+                "Required shared libraries are available."
+                if not missing_libraries
+                else "Required shared libraries are missing."
+            ),
+            details={"paths": library_paths, "missing": missing_libraries},
+        ),
+    ]
 
 
 def _check_imports(skip: bool) -> list[CheckResult]:

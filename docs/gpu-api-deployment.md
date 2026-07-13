@@ -33,6 +33,11 @@ git checkout codex/commercial-mediapipe-cropper
 Create and activate a Python environment:
 
 ```bash
+apt update
+apt install -y ffmpeg libgles2 libegl1 libgl1 libglib2.0-0
+```
+
+```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -58,6 +63,14 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 Download Humans mode weights and the MediaPipe detector model:
 
 ```bash
+python scripts/download_humans_assets.py
+```
+
+If the rented machine cannot reliably reach Hugging Face, set a mirror before
+retrying:
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
 python scripts/download_humans_assets.py
 ```
 
@@ -88,8 +101,10 @@ python scripts/check_deployment_preflight.py
 
 The preflight checks Python version, required repository files, Humans mode
 weights, the MediaPipe detector model, blocked commercial-risk paths, the
-commercial safety scan, API environment values, Python package imports, and CUDA
-availability through PyTorch. Use `--skip-gpu` only on non-GPU machines.
+commercial safety scan, API environment values, required system commands,
+shared libraries, Python package imports, and CUDA availability through PyTorch.
+Use `--skip-gpu` only on non-GPU machines. Use `--skip-system-deps` only on
+non-deployment machines where Linux runtime libraries are intentionally absent.
 
 For a GPU regression pass, run:
 

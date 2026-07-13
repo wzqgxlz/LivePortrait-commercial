@@ -13,6 +13,14 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on fresh machines
 
 
 DEFAULT_REPO_ID = "KlingTeam/LivePortrait"
+REQUIRED_HUMANS_FILES = (
+    Path("pretrained_weights") / "liveportrait" / "landmark.onnx",
+    Path("pretrained_weights") / "liveportrait" / "base_models" / "appearance_feature_extractor.pth",
+    Path("pretrained_weights") / "liveportrait" / "base_models" / "motion_extractor.pth",
+    Path("pretrained_weights") / "liveportrait" / "base_models" / "spade_generator.pth",
+    Path("pretrained_weights") / "liveportrait" / "base_models" / "warping_module.pth",
+    Path("pretrained_weights") / "liveportrait" / "retargeting_models" / "stitching_retargeting_module.pth",
+)
 HUMANS_ALLOW_PATTERNS = ["liveportrait/*"]
 HUMANS_IGNORE_PATTERNS = [
     "*.git*",
@@ -43,6 +51,7 @@ def download_humans_assets(
         force=force_mediapipe,
     )
     _assert_no_legacy_detector_dir(weights_dir)
+    _assert_required_assets(repo_root)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -66,6 +75,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except Exception as exc:
         print(f"Asset download failed: {exc}", file=sys.stderr)
+        print(
+            "If Hugging Face is unavailable from this machine, run "
+            "`export HF_ENDPOINT=https://hf-mirror.com` and retry.",
+            file=sys.stderr,
+        )
         return 1
 
     print("Humans mode assets are ready.")
@@ -95,6 +109,16 @@ def _download_file(url: str, destination: Path, force: bool = False) -> None:
     tmp_path.replace(destination)
 
 
+def _assert_required_assets(repo_root: Path) -> None:
+    required = (*REQUIRED_HUMANS_FILES, MEDIAPIPE_MODEL_RELATIVE_PATH)
+    missing = [str(path) for path in required if not (repo_root / path).exists()]
+    if missing:
+        raise RuntimeError(
+            "Required Humans mode assets are still missing after download: "
+            + ", ".join(missing)
+        )
+
+
 def _assert_no_legacy_detector_dir(weights_dir: Path) -> None:
     legacy_dir = weights_dir / ("insight" + "face")
     if legacy_dir.exists():
@@ -106,4 +130,3 @@ def _assert_no_legacy_detector_dir(weights_dir: Path) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -43,7 +43,11 @@ wrapper:
 - GPU machine quickstart command checklist for clone, preflight, API startup,
   smoke job, and browser validation.
 - Deployment preflight script for Python, dependency, model, MediaPipe,
-  commercial-safety, API environment, and CUDA readiness checks.
+  commercial-safety, API environment, system command/shared-library, and CUDA
+  readiness checks.
+- GPU validation issue record covering missing Humans weights, Hugging Face
+  mirror retry, FFmpeg, MediaPipe Linux shared libraries, and final smoke
+  success.
 - Idempotent job submission, bounded failed-job retries, restart recovery for
   pending work, and interruption audit events.
 - Source image authorization confirmation.
@@ -137,17 +141,17 @@ wrapper:
 | API service guide | `docs/mvp-api-service.md` | Local/API usage guide, endpoint descriptions, auth behavior, frontend notes, smoke test records, and cleanup flow. |
 | systemd environment template | `deploy/liveportrait-api.env.example` | Production-style environment variables for API deployment. |
 | systemd service template | `deploy/liveportrait-api.service` | Example Linux service unit for long-running API deployment. |
-| API Dockerfile | `deploy/Dockerfile.api` | Builds a GPU API container image without bundling local model caches, output files, or API data. |
+| API Dockerfile | `deploy/Dockerfile.api` | Builds a GPU API container image without bundling local model caches, output files, or API data; includes FFmpeg and MediaPipe/OpenCV Linux shared-library packages. |
 | GPU Docker Compose file | `deploy/docker-compose.gpu.yml` | Runs the API container with NVIDIA GPU access, mounted model weights, mounted API data, API Key configuration, and port `8000`. |
 | Nginx reverse proxy template | `deploy/nginx-liveportrait-api.conf` | Example HTTPS reverse proxy for the API/frontend with upload size limits, long proxy timeouts, forwarded headers, and HTTP-to-HTTPS redirect. |
 | Caddy reverse proxy template | `deploy/Caddyfile.example` | Example Caddy HTTPS reverse proxy for the API/frontend with upload size limit, long timeouts, forwarded headers, and access logging. |
 | Docker build ignore file | `.dockerignore` | Keeps local virtualenvs, temp files, outputs, and model caches out of container build context. |
 | GPU API startup script | `scripts/start_gpu_api_server.sh` | Starts the API on a GPU machine after checking required environment and commercial-safety guardrails. |
 | Deployment check script | `scripts/check_api_deployment.py` | Non-inference HTTP checks for health, frontend, API Key protection, audit export protection, authorization export protection, operations audit export protection, cleanup run history protection, and cleanup action protection. |
-| Deployment preflight script | `scripts/check_deployment_preflight.py` | Checks Python version, repository files, Humans mode weights, MediaPipe detector model, blocked commercial-risk paths, commercial safety scan, API environment, package imports, and CUDA availability before deployment. |
+| Deployment preflight script | `scripts/check_deployment_preflight.py` | Checks Python version, repository files, Humans mode weights, MediaPipe detector model, blocked commercial-risk paths, commercial safety scan, API environment, FFmpeg/FFprobe, Linux shared libraries, package imports, and CUDA availability before deployment. |
 | Real API smoke job script | `scripts/smoke_api_job.py` | Uploads real source/driving assets, polls job status, and downloads the result. |
 | Local product workflow check | `scripts/check_local_product_workflow.py` | Runs a non-GPU in-process acceptance workflow for auth, Key issuance/revocation, user job submission, idempotency, retry, cleanup dry-run, and operational audit export. |
-| Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment. |
+| Humans assets downloader | `scripts/download_humans_assets.py` | Downloads Humans mode assets and the MediaPipe detector model for migration/deployment, validates required files, and points GPU operators to the Hugging Face mirror retry path. |
 | Humans regression script | `scripts/run_humans_regression.py` | Runs focused Humans mode regression cases. |
 | API cleanup script | `scripts/cleanup_api_jobs.py` | Removes old succeeded/failed jobs and old operational audit events from API storage, then records each run in `cleanup-runs.jsonl`. |
 
@@ -163,6 +167,7 @@ wrapper:
 | Production operations guide | `docs/production-operations.md` | Launch checklist, daily operations, support export, cleanup evidence, incident response, and MVP limitations. |
 | Content safety and authorization workflow | `docs/content-safety-authorization-workflow.md` | MVP workflow for authorization records, content review, prohibited uses, manual review, support export, and retention. |
 | Local product workflow acceptance record | `docs/local-product-workflow-acceptance-2026-07-12.md` | Non-GPU acceptance evidence for administrator access, user workflow, audit export, retry, cleanup dry-run, and operational audit export. |
+| GPU validation record | `docs/gpu-validation-record-2026-07-13.md` | Real GPU validation evidence for the first successful smoke job and the deployment issues fixed afterward. |
 | Humans regression record | `docs/humans-mediapipe-regression-2026-07-08.md` | Recorded Humans mode MediaPipe regression notes. |
 | Commercial migration plan | `docs/superpowers/plans/2026-07-08-commercial-mediapipe-cropper.md` | Implementation plan used for the commercial-safe MediaPipe migration. |
 
@@ -185,7 +190,7 @@ Recent checkpoints have been verified with:
 ```powershell
 python -m pytest -q
 python scripts\commercial_safety_scan.py
-python scripts\check_deployment_preflight.py --skip-gpu --skip-imports --allow-missing-api-key
+python scripts\check_deployment_preflight.py --skip-gpu --skip-imports --skip-system-deps --allow-missing-api-key
 node --check src\api\static\app.js
 python scripts\check_api_deployment.py --base-url http://127.0.0.1:<port> --api-key test-key
 python scripts\check_local_product_workflow.py
@@ -194,7 +199,7 @@ python scripts\check_local_product_workflow.py
 Latest known full test result:
 
 ```text
-66 passed
+68 passed
 Commercial safety scan passed.
 ```
 
@@ -202,6 +207,7 @@ Commercial safety scan passed.
 
 | Commit | Summary |
 | --- | --- |
+| `20c938b` | `docs: add gpu machine quickstart` |
 | `d652fb5` | `chore: add deployment preflight check` |
 | `49402f9` | `docs: add local product workflow acceptance` |
 | `95ae98f` | `feat: add operational audit export` |
